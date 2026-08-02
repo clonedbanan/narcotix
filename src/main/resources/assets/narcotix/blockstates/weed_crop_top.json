@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "blooming=false": {
+      "model": "narcotix:block/weed_stage4_top"
+    },
+    "blooming=true": {
+      "model": "narcotix:block/weed_bloom_top"
+    }
+  }
+}

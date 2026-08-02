@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "narcotix:trimmed_bud",
+    "minecraft:paper"
+  ],
+  "result": {
+    "id": "narcotix:joint",
+    "count": 1
+  }
+}
