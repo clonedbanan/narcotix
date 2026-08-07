@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.example.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "PlayerItemInHandLayerMixin",
+    "JointSmokingArmPoseMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

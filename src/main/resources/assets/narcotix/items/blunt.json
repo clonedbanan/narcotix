@@ -1,0 +1,27 @@
+{
+  "model": {
+    "type": "minecraft:condition",
+    "property": "minecraft:using_item",
+    "on_false": {
+      "type": "minecraft:model",
+      "model": "narcotix:item/blunt_1"
+    },
+    "on_true": {
+      "type": "minecraft:range_dispatch",
+      "property": "minecraft:use_duration",
+      "scale": 0.1,
+      "entries": [
+        { "threshold": 0.0, "model": { "type": "minecraft:model", "model": "narcotix:item/blunt_1" } },
+        { "threshold": 1.0, "model": { "type": "minecraft:model", "model": "narcotix:item/blunt_2" } },
+        { "threshold": 2.0, "model": { "type": "minecraft:model", "model": "narcotix:item/blunt_3" } },
+        { "threshold": 3.0, "model": { "type": "minecraft:model", "model": "narcotix:item/blunt_4" } },
+        { "threshold": 4.0, "model": { "type": "minecraft:model", "model": "narcotix:item/blunt_5" } },
+        { "threshold": 5.0, "model": { "type": "minecraft:model", "model": "narcotix:item/blunt_6" } }
+      ],
+      "fallback": {
+        "type": "minecraft:model",
+        "model": "narcotix:item/blunt_1"
+      }
+    }
+  }
+}

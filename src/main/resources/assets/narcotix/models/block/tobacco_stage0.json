@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cross",
+  "textures": {
+    "cross": "narcotix:block/tobacco_stage0"
+  }
+}

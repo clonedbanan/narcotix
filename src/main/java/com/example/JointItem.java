@@ -9,7 +9,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-
+import net.minecraft.world.item.ItemUseAnimation;
 public class JointItem extends Item {
     public static final int USE_DURATION = 90;
 
@@ -23,10 +23,17 @@ public class JointItem extends Item {
         return InteractionResult.CONSUME;
     }
 
+
     @Override
     public int getUseDuration(ItemStack stack, LivingEntity entity) {
         return USE_DURATION;
     }
+
+    @Override
+    public ItemUseAnimation getUseAnimation(ItemStack stack) {
+    return ItemUseAnimation.SPYGLASS;
+}
+    
 
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {

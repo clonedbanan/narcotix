@@ -2,6 +2,19 @@
   "item.narcotix.weed_seeds": "Weed Seeds",
   "item.narcotix.trimmed_bud": "Trimmed Bud",
   "item.narcotix.joint": "Joint",
+  "item.narcotix.cocaine_seeds": "Cocaine Seeds",
+  "item.narcotix.coke_leaf": "Coke Leaves",
+  "item.narcotix.loose_coke": "Loose Coke",
+  "item.narcotix.coke_brick": "Coke Brick",
+  "item.narcotix.tobacco_seeds": "Tobacco Seeds",
+  "item.narcotix.tobacco_leaf": "Tobacco Leaf",
+  "item.narcotix.dried_tobacco_leaf": "Dried Tobacco Leaf",
+  "item.narcotix.blunt": "Blunt",
+  "item.narcotix.cigarette": "Cigarette",
   "block.narcotix.weed_crop": "Weed Plant",
-  "block.narcotix.weed_crop_top": "Weed Plant"
+  "block.narcotix.weed_crop_top": "Weed Plant",
+  "block.narcotix.cocaine_crop": "Cocaine Plant",
+  "block.narcotix.cocaine_crop_top": "Cocaine Plant",
+  "block.narcotix.tobacco_crop": "Tobacco Plant",
+  "block.narcotix.weed_block": "Block of Weed"
 }

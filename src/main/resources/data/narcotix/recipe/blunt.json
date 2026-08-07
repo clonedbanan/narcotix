@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "narcotix:trimmed_bud",
+    "narcotix:dried_tobacco_leaf"
+  ],
+  "result": {
+    "id": "narcotix:blunt",
+    "count": 1
+  }
+}

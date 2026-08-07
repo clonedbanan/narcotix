@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "age=0": { "model": "narcotix:block/coke_stage0" },
+    "age=1": { "model": "narcotix:block/coke_stage1" },
+    "age=2": { "model": "narcotix:block/coke_stage2" },
+    "age=3": { "model": "narcotix:block/coke_stage3" },
+    "age=4": { "model": "narcotix:block/coke_stage4_bottom" },
+    "age=5": { "model": "narcotix:block/coke_bloom_bottom" }
+  }
+}

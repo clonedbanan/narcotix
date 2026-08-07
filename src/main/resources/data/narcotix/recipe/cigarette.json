@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "minecraft:paper",
+    "narcotix:dried_tobacco_leaf"
+  ],
+  "result": {
+    "id": "narcotix:cigarette",
+    "count": 1
+  }
+}

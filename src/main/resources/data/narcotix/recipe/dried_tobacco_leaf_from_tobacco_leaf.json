@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "narcotix:tobacco_leaf",
+  "result": {
+    "id": "narcotix:dried_tobacco_leaf",
+    "count": 1
+  },
+  "experience": 0.1,
+  "cookingtime": 200
+}

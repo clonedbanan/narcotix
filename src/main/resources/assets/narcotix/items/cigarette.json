@@ -1,0 +1,23 @@
+{
+  "model": {
+    "type": "minecraft:condition",
+    "property": "minecraft:using_item",
+    "on_false": {
+      "type": "minecraft:model",
+      "model": "narcotix:item/cig_new"
+    },
+    "on_true": {
+      "type": "minecraft:range_dispatch",
+      "property": "minecraft:use_duration",
+      "scale": 0.1,
+      "entries": [
+        { "threshold": 0.0, "model": { "type": "minecraft:model", "model": "narcotix:item/cig_8" } },
+        { "threshold": 4.0, "model": { "type": "minecraft:model", "model": "narcotix:item/cig_9" } }
+      ],
+      "fallback": {
+        "type": "minecraft:model",
+        "model": "narcotix:item/cig_8"
+      }
+    }
+  }
+}

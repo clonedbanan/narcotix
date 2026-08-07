@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "blooming=false": { "model": "narcotix:block/coke_stage4_top" },
+    "blooming=true": { "model": "narcotix:block/coke_bloom_top" }
+  }
+}
