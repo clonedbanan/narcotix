@@ -55,6 +55,7 @@ public class NarcotixVillageLoot {
 
             tableBuilder.withPool(seedPool(NarcotixMod.WEED_SEEDS, 2, 1.0F, 3.0F));
             tableBuilder.withPool(seedPool(NarcotixMod.COCAINE_SEEDS, 2, 1.0F, 3.0F));
+            tableBuilder.withPool(seedPool(NarcotixMod.TOBACCO_SEEDS, 8, 1.0F, 3.0F));
         });
     }
 
