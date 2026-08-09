@@ -1,5 +1,13 @@
 package com.example;
 
+
+
+
+
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.SpawnPlacements;
+import net.minecraft.world.entity.SpawnPlacementTypes;
 import java.util.function.Function;
 
 import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
@@ -38,6 +46,12 @@ public final class NarcotixEntities {
                 35,
                 1,
                 1
+        );
+        SpawnPlacements.register(
+                WANDERING_PLUG,
+                SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                Mob::checkMobSpawnRules
         );
     }
 
