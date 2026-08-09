@@ -118,6 +118,8 @@ public static final Item COKE_BRICK = registerItem(
     );
 
     public static final Item JOINT = registerItem("joint", properties -> new JointItem(properties));
+    public static final Item BLUNT = registerItem("blunt", properties -> new JointItem(properties));
+    public static final Item CIGARETTE = registerItem("cigarette", properties -> new JointItem(properties));
 
     @Override
     public void onInitialize() {
@@ -131,6 +133,8 @@ public static final Item COKE_BRICK = registerItem(
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.INGREDIENTS).register(entries -> {
             entries.accept(TRIMMED_BUD);
             entries.accept(JOINT);
+            entries.accept(BLUNT);
+            entries.accept(CIGARETTE);
             entries.accept(COKE_LEAF);
             entries.accept(LOOSE_COKE);
             entries.accept(COKE_BRICK);
@@ -160,3 +164,5 @@ public static final Item COKE_BRICK = registerItem(
     }
     
 }
+
+

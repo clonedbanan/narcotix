@@ -67,12 +67,12 @@ public class JointSmokingArmPoseMixin {
          * Tune these values exactly like you tuned the joint pose before.
          */
         if (useArm == HumanoidArm.RIGHT) {
-            arm.xRot = -1.70F + (this.head.xRot * 0.55F);
-            arm.yRot = -0.65F + (this.head.yRot * 0.65F);
+            arm.xRot = -1.95F + (this.head.xRot * 0.55F);
+            arm.yRot = -0.40F + (this.head.yRot * 0.65F);
             arm.zRot = 0.35F;
         } else {
-            arm.xRot = -1.70F + (this.head.xRot * 0.55F);
-            arm.yRot = 0.65F + (this.head.yRot * 0.65F);
+            arm.xRot = -1.95F + (this.head.xRot * 0.55F);
+            arm.yRot = 0.40F + (this.head.yRot * 0.65F);
             arm.zRot = -0.35F;
         }
     }

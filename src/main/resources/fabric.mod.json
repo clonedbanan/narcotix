@@ -11,8 +11,7 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "com.example.NarcotixMod",
-      "com.example.NarcotixAdditions"
+      "com.example.NarcotixMod"
     ],
     "client": [
       "com.example.NarcotixClient"

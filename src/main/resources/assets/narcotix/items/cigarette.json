@@ -11,12 +11,73 @@
       "property": "minecraft:use_duration",
       "scale": 0.1,
       "entries": [
-        { "threshold": 0.0, "model": { "type": "minecraft:model", "model": "narcotix:item/cig_8" } },
-        { "threshold": 4.0, "model": { "type": "minecraft:model", "model": "narcotix:item/cig_9" } }
+        {
+          "threshold": 0.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_1"
+          }
+        },
+        {
+          "threshold": 1.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_2"
+          }
+        },
+        {
+          "threshold": 2.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_3"
+          }
+        },
+        {
+          "threshold": 3.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_4"
+          }
+        },
+        {
+          "threshold": 4.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_5"
+          }
+        },
+        {
+          "threshold": 5.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_6"
+          }
+        },
+        {
+          "threshold": 6.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_7"
+          }
+        },
+        {
+          "threshold": 7.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_8"
+          }
+        },
+        {
+          "threshold": 8.0,
+          "model": {
+            "type": "minecraft:model",
+            "model": "narcotix:item/cig_9"
+          }
+        }
       ],
       "fallback": {
         "type": "minecraft:model",
-        "model": "narcotix:item/cig_8"
+        "model": "narcotix:item/cig_1"
       }
     }
   }
