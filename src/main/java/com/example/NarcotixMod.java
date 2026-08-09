@@ -1,5 +1,7 @@
 package com.example;
 
+
+import net.minecraft.world.level.block.Block;
 import java.util.function.Function;
 
 import net.fabricmc.api.ModInitializer;
@@ -13,7 +15,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Block;
+
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
@@ -118,6 +121,14 @@ public class NarcotixMod implements ModInitializer {
             Item::new
     );
 
+    public static final Block WEED_BLOCK = registerBlock(
+        "weed_block",
+        properties -> new Block(properties
+                .strength(0.5F)
+                .sound(net.minecraft.world.level.block.SoundType.GRASS)
+        )
+);
+
     public static final Item JOINT = registerItem("joint", properties -> new JointItem(properties));
     public static final Item BLUNT = registerItem("blunt", properties -> new JointItem(properties));
     public static final Item CIGARETTE = registerItem("cigarette", properties -> new JointItem(properties));
@@ -132,6 +143,7 @@ public class NarcotixMod implements ModInitializer {
 
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.INGREDIENTS).register(entries -> {
             entries.accept(TRIMMED_BUD);
+            entries.accept(WEED_BLOCK);
             entries.accept(JOINT);
             entries.accept(BLUNT);
             entries.accept(CIGARETTE);
@@ -170,6 +182,33 @@ public class NarcotixMod implements ModInitializer {
         Block block = factory.apply(properties.setId(key));
         return Registry.register(BuiltInRegistries.BLOCK, key, block);
     }
+    private static Block registerBlock(String name, Function<BlockBehaviour.Properties, Block> blockFactory) {
+        ResourceKey<Block> blockKey = ResourceKey.create(
+                Registries.BLOCK,
+                Identifier.fromNamespaceAndPath(MOD_ID, name)
+        );
+
+        Block block = blockFactory.apply(
+                BlockBehaviour.Properties.of()
+                        .setId(blockKey)
+        );
+
+        Registry.register(BuiltInRegistries.BLOCK, blockKey, block);
+
+        ResourceKey<Item> itemKey = ResourceKey.create(
+                Registries.ITEM,
+                Identifier.fromNamespaceAndPath(MOD_ID, name)
+        );
+
+        Registry.register(
+                BuiltInRegistries.ITEM,
+                itemKey,
+                new BlockItem(block, new Item.Properties().setId(itemKey))
+        );
+
+        return block;
+    }
+
 
     private static Item registerItem(String name, Function<Item.Properties, Item> factory) {
         Identifier id = id(name);

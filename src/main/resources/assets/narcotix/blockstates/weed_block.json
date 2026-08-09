@@ -1,5 +1,7 @@
 {
   "variants": {
-    "": { "model": "narcotix:block/weed_block" }
+    "": {
+      "model": "narcotix:block/weed_block"
+    }
   }
 }

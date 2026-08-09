@@ -1,5 +1,7 @@
 package com.example;
 
+
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -41,13 +43,14 @@ public class WanderingPlugEntity extends AbstractVillager {
         MerchantOffers offers = this.getOffers();
         offers.clear();
 
-        offers.add(sell(NarcotixMod.WEED_SEEDS, 1, 4, 24));
-        offers.add(sell(NarcotixMod.COCAINE_SEEDS, 2, 3, 18));
-        offers.add(sell(NarcotixMod.TOBACCO_SEEDS, 1, 4, 24));
+        offers.add(sell(NarcotixMod.WEED_SEEDS, 1, 1, 24));
+        offers.add(sell(NarcotixMod.COCAINE_SEEDS, 2, 1, 18));
+        offers.add(sell(NarcotixMod.TOBACCO_SEEDS, 1, 1, 24));
 
-        offers.add(buy(NarcotixMod.JOINT, 3, 1, 16));
-        offers.add(buy(NarcotixMod.BLUNT, 4, 1, 16));
-        offers.add(buy(NarcotixMod.CIGARETTE, 2, 1, 20));
+        offers.add(buy(NarcotixMod.JOINT, 3, 5, 16));
+        offers.add(buy(NarcotixMod.BLUNT, 4, 5, 16));
+        offers.add(buy(NarcotixMod.CIGARETTE, 2, 5, 20));
+        offers.add(buy(NarcotixMod.WEED_BLOCK.asItem(), 8, 1, 8));
         offers.add(buy(NarcotixMod.COKE_BRICK, 12, 1, 8));
     }
 
@@ -105,7 +108,10 @@ public class WanderingPlugEntity extends AbstractVillager {
 
     @Override
     protected void rewardTradeXp(MerchantOffer offer) {
+        if (!this.level().isClientSide() && this.level() instanceof ServerLevel serverLevel) {
+            ExperienceOrb.award(serverLevel, this.position(), offer.getXp());
     }
+}
 
     @Override
     protected SoundEvent getAmbientSound() {
