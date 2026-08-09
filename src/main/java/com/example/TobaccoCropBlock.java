@@ -23,7 +23,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class TobaccoCropBlock extends BushBlock implements BonemealableBlock {
     public static final IntegerProperty AGE = IntegerProperty.create("age", 0, 4);
-
     public static final int BLOOMING_AGE = 4;
 
     private static final VoxelShape[] SHAPES = new VoxelShape[] {
@@ -91,10 +90,10 @@ public class TobaccoCropBlock extends BushBlock implements BonemealableBlock {
             RandomSource random = level.getRandom();
             int leaves = 3 + random.nextInt(3);
 
-            popResource(level, pos, new ItemStack(NarcotixAdditions.TOBACCO_LEAF, leaves));
+            popResource(level, pos, new ItemStack(NarcotixMod.TOBACCO_LEAF, leaves));
 
             if (random.nextFloat() < 0.35F) {
-                popResource(level, pos, new ItemStack(NarcotixAdditions.TOBACCO_SEEDS, 1 + random.nextInt(2)));
+                popResource(level, pos, new ItemStack(NarcotixMod.TOBACCO_SEEDS, 1 + random.nextInt(2)));
             }
 
             level.setBlock(pos, state.setValue(AGE, 3), 2);
@@ -112,18 +111,17 @@ public class TobaccoCropBlock extends BushBlock implements BonemealableBlock {
             return;
         }
 
-        popResource(level, pos, new ItemStack(NarcotixAdditions.TOBACCO_SEEDS, 1));
+        popResource(level, pos, new ItemStack(NarcotixMod.TOBACCO_SEEDS, 1));
 
         if (state.getValue(AGE) == BLOOMING_AGE) {
             RandomSource random = level.getRandom();
             int leaves = 3 + random.nextInt(3);
-            popResource(level, pos, new ItemStack(NarcotixAdditions.TOBACCO_LEAF, leaves));
+            popResource(level, pos, new ItemStack(NarcotixMod.TOBACCO_LEAF, leaves));
         }
     }
 
     private void growOneStage(ServerLevel level, BlockPos pos, BlockState state) {
         int age = state.getValue(AGE);
-
         if (age < BLOOMING_AGE) {
             level.setBlock(pos, state.setValue(AGE, age + 1), 2);
         }
@@ -144,7 +142,6 @@ public class TobaccoCropBlock extends BushBlock implements BonemealableBlock {
         int age = state.getValue(AGE);
         int growth = 1 + random.nextInt(2);
         int newAge = Math.min(BLOOMING_AGE, age + growth);
-
         level.setBlock(pos, state.setValue(AGE, newAge), 2);
     }
 }

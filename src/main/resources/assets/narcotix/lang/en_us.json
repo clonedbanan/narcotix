@@ -16,5 +16,6 @@
   "block.narcotix.cocaine_crop": "Cocaine Plant",
   "block.narcotix.cocaine_crop_top": "Cocaine Plant",
   "block.narcotix.tobacco_crop": "Tobacco Plant",
-  "block.narcotix.weed_block": "Block of Weed"
+  "block.narcotix.weed_block": "Block of Weed",
+  "entity.narcotix.wandering_plug": "Wandering Plug"
 }
