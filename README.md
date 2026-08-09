@@ -1,4 +1,4 @@
-<img width="10" height="10" alt="trimmed_bud" src="https://github.com/user-attachments/assets/31641023-b92e-4ab3-8347-53a172316232" /> # Narcotix <img width="10" height="10" alt="trimmed_bud" src="https://github.com/user-attachments/assets/31641023-b92e-4ab3-8347-53a172316232" />
+<img width="50" height="50" alt="trimmed_bud" src="https://github.com/user-attachments/assets/31641023-b92e-4ab3-8347-53a172316232" /> #Narcotix <img width="50" height="50" alt="trimmed_bud" src="https://github.com/user-attachments/assets/31641023-b92e-4ab3-8347-53a172316232" />
 ## A Minecraft mod that adds lots of substances to the game.
 Heavily inspired by the game Schedule 1. This project is still in early development.
 
