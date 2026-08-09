@@ -1,6 +1,6 @@
 # Narcotix
 
-## A Minecraft mod that adds lots of fun drugs to the game.
+## A Minecraft mod that adds lots of substances to the game.
 Heavily inspired by the game Schedule 1. This project is still in early development.
 
 <img width="2560" height="1440" alt="2026-08-09_14 19 58" src="https://github.com/user-attachments/assets/e86d56fa-54b6-439d-8f19-083e8a2b6452" />
