@@ -3,6 +3,13 @@
 # Narcotix
 
 <img width="30" height="30" alt="trimmed_bud" src="https://github.com/user-attachments/assets/31641023-b92e-4ab3-8347-53a172316232" />
+<img width="30" height="30" alt="loose_coke" src="https://github.com/user-attachments/assets/997c476b-e150-4b90-93b1-f868c4ca1bdc" />
+<img width="30" height="30" alt="blunt_1" src="https://github.com/user-attachments/assets/26fdf3e4-76f8-4318-aafa-227937c44ea2" />
+<img width="30" height="30" alt="coke_brick" src="https://github.com/user-attachments/assets/cd33e51d-d1bf-4d06-b39a-90f66439c28d" />
+<img width="30" height="30" alt="joint_new" src="https://github.com/user-attachments/assets/0deee1e1-9bed-46e6-adf5-d571955f72db" />
+<img width="30" height="30" alt="coke_leaf" src="https://github.com/user-attachments/assets/6af67124-394b-40b1-85f9-2bd75ad13bec" />
+<img width="30" height="30" alt="cig_new" src="https://github.com/user-attachments/assets/1cf051ee-15ba-4519-b35d-12bb30a12303" />
+<img width="30" height="30" alt="tobacco_leaf_dried" src="https://github.com/user-attachments/assets/1a0bc529-c4ed-4c2a-8a12-db1c1e403671" />
 
 
 ## A Minecraft mod that adds lots of substances to the game.
@@ -13,12 +20,3 @@ Heavily inspired by the game Schedule 1. This project is still in early developm
 <img width="2560" height="1440" alt="2026-08-09_14 14 17" src="https://github.com/user-attachments/assets/8c1cbae2-4d41-4d80-ada2-44a9dea9c7e5" />
 <img width="1444" height="813" alt="2026-08-09_14 16 18" src="https://github.com/user-attachments/assets/cb7c80e4-387e-4b35-88c3-7f6dce3f1272" />
 <img width="2560" height="1440" alt="2026-08-09_14 22 56" src="https://github.com/user-attachments/assets/5e3c7574-5af8-42cc-be39-755a6716d321" />
-
-
-<img width="30" height="30" alt="tobacco_leaf_dried" src="https://github.com/user-attachments/assets/b504f59c-c6d1-42e5-bf9f-84cf20628c45" />
-<img width="16" height="16" alt="loose_coke" src="https://github.com/user-attachments/assets/2574078b-a280-4207-a6c2-df1d664c826c" />
-<img width="16" height="16" alt="joint_new" src="https://github.com/user-attachments/assets/2571ae22-2ab9-4ef8-92cb-32a088a4c72c" />
-<img width="16" height="16" alt="coke_leaf" src="https://github.com/user-attachments/assets/134e749b-8d15-40fd-a4e6-54dc80bff433" />
-<img width="16" height="16" alt="cig_new" src="https://github.com/user-attachments/assets/23fe69d4-41e8-400e-88cc-4c0aa20debc9" />
-<img width="16" height="16" alt="coke_brick" src="https://github.com/user-attachments/assets/cb713f92-3f46-4971-8e91-130a44084a9b" />
-<img width="16" height="16" alt="blunt_1" src="https://github.com/user-attachments/assets/6a20cf3d-dc19-4acd-bedd-6cbd990e90c3" />
