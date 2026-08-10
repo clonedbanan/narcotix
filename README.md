@@ -12,7 +12,7 @@
 <img width="30" height="30" alt="tobacco_leaf_dried" src="https://github.com/user-attachments/assets/1a0bc529-c4ed-4c2a-8a12-db1c1e403671" />
 
 
-## A Minecraft mod that adds lots of substances to the game.
+## A Minecraft mod that adds lots of illicit substances to the game.
 Heavily inspired by the game Schedule 1. This project is still in early development.
 
 <img width="2560" height="1440" alt="2026-08-09_14 19 58" src="https://github.com/user-attachments/assets/e86d56fa-54b6-439d-8f19-083e8a2b6452" />
