@@ -157,6 +157,7 @@ public class NarcotixMod implements ModInitializer {
         NarcotixVillageLoot.register();
         NarcotixEntities.register();
 
+        NarcotixCopAdditions.register();
         LOGGER.info("Narcotix loaded.");
     }
 

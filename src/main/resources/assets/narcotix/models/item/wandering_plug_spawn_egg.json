@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "narcotix:item/wandering_plug_spawn_egg"
+  }
+}
