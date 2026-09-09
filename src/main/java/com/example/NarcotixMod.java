@@ -156,9 +156,10 @@ public class NarcotixMod implements ModInitializer {
 
         NarcotixVillageLoot.register();
         NarcotixEntities.register();
-
         NarcotixCopAdditions.register();
-        LOGGER.info("Narcotix loaded.");
+        LOGGER.info("Registering village structure injection.");
+        NarcotixVillageStructures.register();
+LOGGER.info("Narcotix loaded.");
     }
 
     private static Block registerCropBlock(String name, Function<BlockBehaviour.Properties, Block> blockFactory) {
@@ -222,3 +223,5 @@ public class NarcotixMod implements ModInitializer {
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
 }
+
+

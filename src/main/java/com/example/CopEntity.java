@@ -1,7 +1,13 @@
 package com.example;
 
 
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.npc.villager.Villager;
 
+import net.minecraft.world.entity.LivingEntity;
+
+
+import net.minecraft.world.InteractionHand;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.core.Direction;
 import net.minecraft.core.BlockPos;
@@ -27,9 +33,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 
 public class CopEntity extends Vindicator {
-        private BlockPos cropSearchTarget = null;
+        
+    private int cropBreakSwingTicks = 0;
+private BlockPos cropSearchTarget = null;
     private int cropBreakWarmup = 0;
     private int cropScanCooldown = 0;
 private static final int SEARCH_RADIUS = 8;
@@ -52,6 +61,8 @@ private static final int SEARCH_RADIUS = 8;
 
     @Override
     protected void registerGoals() {
+        // Fight back when hit and alert nearby cops.
+        this.targetSelector.addGoal(0, new HurtByTargetGoal(this).setAlertOthers(CopEntity.class));
         this.goalSelector.addGoal(0, new FloatGoal(this));
         this.goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.0D, true));
         this.goalSelector.addGoal(2, new WaterAvoidingRandomStrollGoal(this, 0.55D));
@@ -64,6 +75,17 @@ private static final int SEARCH_RADIUS = 8;
     @Override
     public void aiStep() {
         super.aiStep();
+
+        
+        if (!this.level().isClientSide()) {
+            if (this.cropBreakSwingTicks > 0) {
+                this.setAggressive(true);
+                this.cropBreakSwingTicks--;
+            } else if (this.getTarget() == null) {
+                this.setAggressive(false);
+            }
+        }
+protectNearbyVillagers();
 
         if (this.level().isClientSide()) {
             return;
@@ -227,6 +249,12 @@ if (this.inspectingContainerPos != null) {
                 || stack.is(NarcotixMod.COKE_BRICK)
                 || stack.is(NarcotixMod.WEED_BLOCK.asItem());
     }
+    private void narcotixStartCropBreakSwing() {
+        this.cropBreakSwingTicks = 20;
+        this.setAggressive(true);
+        this.swing(InteractionHand.MAIN_HAND);
+    }
+
 
     @Override
     protected SoundEvent getAmbientSound() {
@@ -452,17 +480,55 @@ if (this.inspectingContainerPos != null) {
     }
 
     private void breakContrabandCrop(ServerLevel level, BlockPos basePos) {
-        BlockState baseState = level.getBlockState(basePos);
+        
+        this.swing(InteractionHand.MAIN_HAND);
+BlockState baseState = level.getBlockState(basePos);
 
         if (baseState.is(NarcotixMod.WEED_CROP) || baseState.is(NarcotixMod.COCAINE_CROP)) {
             BlockPos topPos = basePos.above();
             BlockState topState = level.getBlockState(topPos);
 
             if (topState.is(NarcotixMod.WEED_CROP_TOP) || topState.is(NarcotixMod.COCAINE_CROP_TOP)) {
+                this.swing(InteractionHand.MAIN_HAND);
+                this.narcotixStartCropBreakSwing();
                 level.destroyBlock(topPos, false);
             }
         }
 
+        this.swing(InteractionHand.MAIN_HAND);
+
+        this.narcotixStartCropBreakSwing();
         level.destroyBlock(basePos, false);
+    }
+
+    private void protectNearbyVillagers() {
+        if (this.level().isClientSide()) {
+            return;
+        }
+
+        // Keep current hostile target if it is still valid and nearby.
+        LivingEntity currentTarget = this.getTarget();
+        if (currentTarget != null && currentTarget.isAlive() && this.distanceToSqr(currentTarget) < 36.0D * 36.0D) {
+            return;
+        }
+
+        for (Villager villager : this.level().getEntitiesOfClass(Villager.class, this.getBoundingBox().inflate(18.0D))) {
+            LivingEntity attacker = villager.getLastHurtByMob();
+
+            if (attacker == null || !attacker.isAlive() || attacker == this) {
+                continue;
+            }
+
+            if (attacker instanceof CopEntity) {
+                continue;
+            }
+
+            if (this.distanceToSqr(attacker) > 36.0D * 36.0D) {
+                continue;
+            }
+
+            this.setTarget(attacker);
+            return;
+        }
     }
 }

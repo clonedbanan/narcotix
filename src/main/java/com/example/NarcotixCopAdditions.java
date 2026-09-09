@@ -2,6 +2,10 @@ package com.example;
 
 
 
+
+
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
@@ -49,13 +53,11 @@ public class NarcotixCopAdditions {
     );
 
     public static void register() {
+        CopSurfaceSpawner.register();
+        NarcotixVillagePresenceSpawner.register();
 
         FabricDefaultAttributeRegistry.register(COP, CopEntity.createAttributes());
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(creativeTab -> {
-            creativeTab.accept(COP_SPAWN_EGG);
-            creativeTab.accept(WANDERING_PLUG_SPAWN_EGG);
-        });
-
+        // v17 natural cop spawning
         SpawnPlacements.register(
                 COP,
                 SpawnPlacementTypes.ON_GROUND,
@@ -67,15 +69,31 @@ public class NarcotixCopAdditions {
                 BiomeSelectors.foundInOverworld(),
                 MobCategory.CREATURE,
                 COP,
-                12,
+                1,
                 1,
                 2
         );
-    }
+        // end v17 natural cop spawning
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(creativeTab -> {
+            creativeTab.accept(COP_SPAWN_EGG);
+            creativeTab.accept(WANDERING_PLUG_SPAWN_EGG);
+        });
+}
 
     private static boolean checkCopSpawnRules(EntityType<CopEntity> entityType, ServerLevelAccessor level, EntitySpawnReason spawnReason, BlockPos pos, RandomSource random) {
-        return level.getFluidState(pos).isEmpty()
-                && level.getFluidState(pos.below()).isEmpty();
+        if (!level.getFluidState(pos).isEmpty() || !level.getFluidState(pos.above()).isEmpty()) {
+            return false;
+        }
+
+        if (!level.getBlockState(pos).isAir() || !level.getBlockState(pos.above()).isAir()) {
+            return false;
+        }
+
+        if (!level.canSeeSky(pos)) {
+            return false;
+        }
+
+        return level.getBlockState(pos.below()).isValidSpawn(level, pos.below(), entityType);
     }
 
     private static EntityType<CopEntity> registerEntityType(String name, Function<ResourceKey<EntityType<?>>, EntityType<CopEntity>> factory) {

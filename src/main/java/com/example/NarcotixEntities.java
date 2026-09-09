@@ -43,9 +43,7 @@ public final class NarcotixEntities {
                 BiomeSelectors.foundInOverworld(),
                 MobCategory.CREATURE,
                 WANDERING_PLUG,
-                35,
-                1,
-                1
+                5, 1, 1
         );
         SpawnPlacements.register(
                 WANDERING_PLUG,
