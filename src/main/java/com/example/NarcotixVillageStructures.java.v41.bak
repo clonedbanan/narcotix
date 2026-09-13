@@ -1,0 +1,197 @@
+package com.example;
+
+import com.mojang.datafixers.util.Pair;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
+import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Optional;
+
+public final class NarcotixVillageStructures {
+    private static final String TARGET_POOL = "village/plains/houses";
+    private static final String COP_STATION = "narcotix:village/plains/cop_station";
+    private static final int WEIGHT = 80;
+
+    private static boolean injected = false;
+
+    private NarcotixVillageStructures() {
+    }
+
+    public static void register() {
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            if (injected) {
+                return;
+            }
+
+            injected = true;
+
+            try {
+                Object registryAccess = server.registryAccess();
+                Object templatePoolRegistry = getTemplatePoolRegistry(registryAccess);
+
+                ResourceKey<StructureTemplatePool> poolKey = ResourceKey.create(
+                        Registries.TEMPLATE_POOL,
+                        Identifier.withDefaultNamespace(TARGET_POOL)
+                );
+
+                StructureTemplatePool pool = getPool(templatePoolRegistry, poolKey, Identifier.withDefaultNamespace(TARGET_POOL));
+
+                if (pool == null) {
+                    System.out.println("[Narcotix] Could not find template pool minecraft:" + TARGET_POOL + ". Cop station was not injected.");
+                    return;
+                }
+
+                StructurePoolElement element = StructurePoolElement
+                        .single(COP_STATION)
+                        .apply(StructureTemplatePool.Projection.RIGID);
+
+                if (alreadyContains(pool, COP_STATION)) {
+                    System.out.println("[Narcotix] Cop station already present in minecraft:" + TARGET_POOL + ".");
+                    return;
+                }
+
+                Pair<StructurePoolElement, Integer> weightedElement = Pair.of(element, WEIGHT);
+
+                boolean added = false;
+
+                try {
+                    pool.getTemplates().add(weightedElement);
+                    added = true;
+                } catch (Throwable ignored) {
+                    // Some mappings expose an immutable view here. The reflective fallback below handles that.
+                }
+
+                added = addToBackingLists(pool, weightedElement, element, WEIGHT) || added;
+
+                if (added) {
+                    System.out.println("[Narcotix] Injected " + COP_STATION + " into minecraft:" + TARGET_POOL + " with weight " + WEIGHT + ".");
+                } else {
+                    System.out.println("[Narcotix] Failed to mutate minecraft:" + TARGET_POOL + ". Cop station was not injected.");
+                }
+            } catch (Throwable t) {
+                System.out.println("[Narcotix] Cop station village injection failed:");
+                t.printStackTrace();
+            }
+        });
+    }
+
+    private static Object getTemplatePoolRegistry(Object registryAccess) throws Exception {
+        for (String methodName : new String[]{"lookupOrThrow", "registryOrThrow"}) {
+            try {
+                Method method = registryAccess.getClass().getMethod(methodName, ResourceKey.class);
+                return method.invoke(registryAccess, Registries.TEMPLATE_POOL);
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+        throw new NoSuchMethodException("Could not find lookupOrThrow or registryOrThrow on " + registryAccess.getClass().getName());
+    }
+
+    private static StructureTemplatePool getPool(Object registry, ResourceKey<StructureTemplatePool> key, Identifier id) throws Exception {
+        for (String methodName : new String[]{"getValue", "get"}) {
+            try {
+                Method method = registry.getClass().getMethod(methodName, ResourceKey.class);
+                Object result = method.invoke(registry, key);
+                StructureTemplatePool pool = unwrapPool(result);
+                if (pool != null) {
+                    return pool;
+                }
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+
+        for (String methodName : new String[]{"getValue", "get"}) {
+            try {
+                Method method = registry.getClass().getMethod(methodName, Identifier.class);
+                Object result = method.invoke(registry, id);
+                StructureTemplatePool pool = unwrapPool(result);
+                if (pool != null) {
+                    return pool;
+                }
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+
+        return null;
+    }
+
+    private static StructureTemplatePool unwrapPool(Object value) throws Exception {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof StructureTemplatePool pool) {
+            return pool;
+        }
+
+        if (value instanceof Optional<?> optional) {
+            if (optional.isEmpty()) {
+                return null;
+            }
+            return unwrapPool(optional.get());
+        }
+
+        for (String methodName : new String[]{"value", "get", "orElseThrow"}) {
+            try {
+                Method method = value.getClass().getMethod(methodName);
+                return unwrapPool(method.invoke(value));
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean alreadyContains(StructureTemplatePool pool, String templateName) {
+        try {
+            for (Pair<StructurePoolElement, Integer> pair : pool.getTemplates()) {
+                if (pair.getFirst().toString().contains(templateName)) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static boolean addToBackingLists(StructureTemplatePool pool, Pair<StructurePoolElement, Integer> weightedElement, StructurePoolElement element, int weight) {
+        boolean added = false;
+
+        for (Field field : StructureTemplatePool.class.getDeclaredFields()) {
+            if (!List.class.isAssignableFrom(field.getType())) {
+                continue;
+            }
+
+            try {
+                field.setAccessible(true);
+                Object value = field.get(pool);
+                if (!(value instanceof List list)) {
+                    continue;
+                }
+
+                Object sample = list.isEmpty() ? null : list.get(0);
+
+                if (sample instanceof Pair || field.getName().toLowerCase().contains("raw")) {
+                    list.add(weightedElement);
+                    added = true;
+                } else if (sample instanceof StructurePoolElement || field.getName().toLowerCase().contains("template")) {
+                    for (int i = 0; i < weight; i++) {
+                        list.add(element);
+                    }
+                    added = true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        return added;
+    }
+}
+
+

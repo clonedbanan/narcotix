@@ -1,0 +1,162 @@
+package com.example;
+
+import java.lang.reflect.Method;
+import java.util.Collection;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.player.Player;
+
+public class NarcotixDrugOverlay {
+    private static double lastX = 0.0D;
+    private static double lastZ = 0.0D;
+    private static float movementPulse = 0.0F;
+
+    public static void render(Object graphics) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null || minecraft.getWindow() == null) {
+            return;
+        }
+
+        Player player = minecraft.player;
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        long now = System.currentTimeMillis();
+
+        boolean coke = hasEffectDescription(player, "effect.narcotix.coke_rush")
+                || hasEffectDescription(player, "effect.narcotix.cocaine");
+        boolean weed = hasEffectDescription(player, "effect.narcotix.weed_high")
+                || hasEffectDescription(player, "effect.narcotix.marijuana");
+
+        if (coke) {
+            renderCokeRush(graphics, width, height, now);
+        }
+
+        if (weed) {
+            updateMovementPulse(player);
+            renderWeedHigh(graphics, width, height, now, movementPulse);
+        } else {
+            lastX = player.getX();
+            lastZ = player.getZ();
+            movementPulse *= 0.85F;
+        }
+    }
+
+    private static boolean hasEffectDescription(Player player, String descriptionId) {
+        Collection<MobEffectInstance> effects = player.getActiveEffects();
+        for (MobEffectInstance effect : effects) {
+            if (descriptionId.equals(effect.getDescriptionId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void updateMovementPulse(Player player) {
+        double dx = player.getX() - lastX;
+        double dz = player.getZ() - lastZ;
+        double speed = Math.sqrt((dx * dx) + (dz * dz));
+        lastX = player.getX();
+        lastZ = player.getZ();
+
+        float target = (float)Math.min(1.0D, speed * 18.0D);
+        movementPulse = (movementPulse * 0.82F) + (target * 0.18F);
+    }
+
+    private static void renderCokeRush(Object graphics, int width, int height, long now) {
+        double beatA = Math.sin(now / 92.0D);
+        double beatB = Math.sin(now / 146.0D);
+        float pulse = (float)Math.max(0.0D, (beatA * 0.75D) + (beatB * 0.25D));
+        int alpha = clamp(55 + (int)(pulse * 105), 35, 155);
+        int softAlpha = clamp(alpha / 2, 20, 80);
+
+        // Red heartbeat vignette only. No white/fullscreen brightness wash.
+        fill(graphics, 0, 0, width, 10 + (int)(pulse * 8), argb(alpha, 130, 0, 0));
+        fill(graphics, 0, height - 10 - (int)(pulse * 8), width, height, argb(alpha, 130, 0, 0));
+        fill(graphics, 0, 0, 12 + (int)(pulse * 10), height, argb(alpha, 150, 0, 0));
+        fill(graphics, width - 12 - (int)(pulse * 10), 0, width, height, argb(alpha, 150, 0, 0));
+
+        fill(graphics, 0, 12, width, 24, argb(softAlpha, 80, 0, 0));
+        fill(graphics, 0, height - 24, width, height - 12, argb(softAlpha, 80, 0, 0));
+        fill(graphics, 12, 0, 26, height, argb(softAlpha, 90, 0, 0));
+        fill(graphics, width - 26, 0, width - 12, height, argb(softAlpha, 90, 0, 0));
+    }
+
+    private static void renderWeedHigh(Object graphics, int width, int height, long now, float movement) {
+        double slow = (Math.sin(now / 720.0D) + 1.0D) * 0.5D;
+        double drift = Math.sin(now / 980.0D);
+        int breathe = (int)(slow * 16.0D);
+        int move = (int)(movement * 18.0F);
+
+        // No bright white wash. Very low-alpha color compression instead.
+        // This fakes shallow color depth by stacking transparent colored bands/noise.
+        fill(graphics, 0, 0, width, height, argb(14 + breathe / 3, 255, 132, 24));
+        fill(graphics, 0, 0, width, height, argb(8 + move / 4, 60, 210, 90));
+
+        // Warm hazy edges, darker than center so the scene stays readable.
+        int edgeAlpha = 24 + breathe + move;
+        fill(graphics, 0, 0, width, 18 + move, argb(edgeAlpha, 255, 122, 28));
+        fill(graphics, 0, height - 18 - move, width, height, argb(edgeAlpha, 255, 122, 28));
+        fill(graphics, 0, 0, 18 + move, height, argb(edgeAlpha, 235, 92, 22));
+        fill(graphics, width - 18 - move, 0, width, height, argb(edgeAlpha, 235, 92, 22));
+
+        // Movement trails: offset translucent color ghosts, not brightness.
+        int offset = 4 + (int)(Math.abs(drift) * 8.0D) + move;
+        fill(graphics, offset, 0, width, height, argb(11 + move / 2, 255, 80, 160));
+        fill(graphics, 0, offset / 2, width - offset, height, argb(10 + move / 2, 40, 255, 130));
+        fill(graphics, -offset, 0, width - offset, height, argb(8 + move / 3, 255, 170, 30));
+
+        // Fuzzy/posterized scan bands. These add compressed color-depth vibes without washing out.
+        int bandStep = 14;
+        int scroll = (int)((now / 55L) % bandStep);
+        for (int y = -bandStep; y < height + bandStep; y += bandStep) {
+            int yy = y + scroll;
+            int bandAlpha = 7 + (int)((Math.sin((now / 180.0D) + y * 0.21D) + 1.0D) * 4.0D) + move / 5;
+            int r = ((y / bandStep) % 3 == 0) ? 255 : 80;
+            int g = ((y / bandStep) % 3 == 1) ? 240 : 120;
+            int b = ((y / bandStep) % 3 == 2) ? 160 : 40;
+            fill(graphics, 0, yy, width, yy + 2, argb(bandAlpha, r, g, b));
+        }
+
+        // Tiny pseudo-noise blocks, deterministic from time. Low alpha only.
+        int seed = (int)(now / 45L);
+        for (int i = 0; i < 34; i++) {
+            seed = seed * 1103515245 + 12345;
+            int x = Math.abs(seed % Math.max(1, width));
+            seed = seed * 1103515245 + 12345;
+            int y = Math.abs(seed % Math.max(1, height));
+            int w = 8 + Math.abs(seed % 24);
+            int a = 10 + Math.abs(seed % 12) + move / 4;
+            fill(graphics, x, y, Math.min(width, x + w), Math.min(height, y + 2), argb(a, 255, 170, 70));
+        }
+    }
+
+    private static int argb(int a, int r, int g, int b) {
+        return ((clamp(a, 0, 255) & 255) << 24)
+                | ((clamp(r, 0, 255) & 255) << 16)
+                | ((clamp(g, 0, 255) & 255) << 8)
+                | (clamp(b, 0, 255) & 255);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    }
+
+    private static void fill(Object graphics, int x1, int y1, int x2, int y2, int color) {
+        if (graphics == null) {
+            return;
+        }
+        try {
+            Method fill = graphics.getClass().getMethod(
+                    "fill",
+                    int.class, int.class, int.class, int.class, int.class
+            );
+            fill.invoke(graphics, x1, y1, x2, y2, color);
+        } catch (Throwable ignored) {
+            // Some mappings rename the draw context class, but the earlier hook still passes a fill-capable object.
+            // If reflection fails, skip the overlay instead of crashing the client.
+        }
+    }
+}

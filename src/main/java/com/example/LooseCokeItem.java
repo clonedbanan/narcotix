@@ -2,6 +2,7 @@ package com.example;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -13,13 +14,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.level.Level;
 
-public class JointItem extends Item {
-    public static final int USE_DURATION = 90;
-    public static final int WEED_HIGH_DURATION_TICKS = 20 * 60;
-    public static final int TOBACCO_DURATION_TICKS = 20 * 30;
-    public static final int HUNGER_DURATION_TICKS = 20 * 5;
+public class LooseCokeItem extends Item {
+    public static final int USE_DURATION = 32;
+    public static final int SPEED_DURATION_TICKS = 20 * 15;
+    public static final int SPEED_AMPLIFIER = 9;
 
-    public JointItem(Properties properties) {
+    public LooseCokeItem(Properties properties) {
         super(properties);
     }
 
@@ -36,29 +36,39 @@ public class JointItem extends Item {
 
     @Override
     public ItemUseAnimation getUseAnimation(ItemStack stack) {
-        return ItemUseAnimation.SPYGLASS;
+        return ItemUseAnimation.EAT;
     }
 
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
-        if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
-            if (stack.is(NarcotixMod.CIGARETTE)) {
-                entity.addEffect(new MobEffectInstance(NarcotixEffects.TOBACCO, TOBACCO_DURATION_TICKS, 0));
-            } else {
-                entity.addEffect(new MobEffectInstance(MobEffects.HUNGER, HUNGER_DURATION_TICKS, 0));
-                entity.addEffect(new MobEffectInstance(NarcotixEffects.WEED_HIGH, WEED_HIGH_DURATION_TICKS, 0));
-            }
-
-            serverLevel.sendParticles(
-                    ParticleTypes.CAMPFIRE_COSY_SMOKE,
-                    entity.getX(), entity.getY() + 1.35D, entity.getZ(),
-                    24, 0.3D, 0.3D, 0.3D, 0.015D
+        if (!level.isClientSide()) {
+            level.playSound(
+                    null,
+                    entity.getX(), entity.getY(), entity.getZ(),
+                    NarcotixMod.LOOSE_COKE_SNIFF_SOUND,
+                    SoundSource.PLAYERS,
+                    1.0F,
+                    1.0F
             );
+
+            entity.addEffect(new MobEffectInstance(MobEffects.SPEED, SPEED_DURATION_TICKS, SPEED_AMPLIFIER));
+            entity.addEffect(new MobEffectInstance(NarcotixEffects.COKE_RUSH, SPEED_DURATION_TICKS, 0));
+
+            if (level instanceof ServerLevel serverLevel) {
+                serverLevel.sendParticles(
+                        ParticleTypes.POOF,
+                        entity.getX(), entity.getY() + 1.45D, entity.getZ(),
+                        8,
+                        0.15D, 0.10D, 0.15D,
+                        0.01D
+                );
+            }
 
             if (entity instanceof Player player && !player.getAbilities().instabuild) {
                 stack.shrink(1);
             }
         }
+
         return stack;
     }
 }

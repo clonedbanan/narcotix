@@ -22,5 +22,11 @@
     "entity.narcotix.cop":  "Cop",
     "item.narcotix.billy_club":  "Billy Club",
     "item.narcotix.cop_spawn_egg":  "Cop Spawn Egg",
-    "item.narcotix.wandering_plug_spawn_egg":  "Wandering Plug Spawn Egg"
+    "item.narcotix.wandering_plug_spawn_egg":  "Wandering Plug Spawn Egg",
+    "effect.narcotix.weed_high":  "Marijuana",
+    "effect.narcotix.marijuana":  "Marijuana",
+    "effect.narcotix.coke_high":  "Cocaine",
+    "effect.narcotix.coke_rush":  "Cocaine",
+    "effect.narcotix.cocaine":  "Cocaine",
+    "effect.narcotix.tobacco":  "Tobacco"
 }

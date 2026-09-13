@@ -1,0 +1,20 @@
+{
+    "item.loose_coke.sniff":  {
+                                  "sounds":  [
+                                                 {
+                                                     "name":  "narcotix:item/loose_coke_sniff",
+                                                     "stream":  false
+                                                 }
+                                             ]
+                              },
+    "item.loose_coke_sniff":  {
+                                  "sounds":  [
+                                                 "narcotix:item/loose_coke_sniff"
+                                             ]
+                              },
+    "item.cocaine_heartbeat":  {
+                                   "sounds":  [
+                                                  "narcotix:item/cocaine_heartbeat"
+                                              ]
+                               }
+}

@@ -25,5 +25,6 @@ EntityRendererRegistry.register(NarcotixEntities.WANDERING_PLUG, WanderingPlugRe
                 helper.register(new MouthJointRenderLayer(parent));
             }
         });
+        net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.addLast(net.minecraft.resources.Identifier.fromNamespaceAndPath(NarcotixMod.MOD_ID, "drug_overlay"), (context, tickCounter) -> NarcotixDrugOverlay.render(context));
     }
 }

@@ -1,0 +1,128 @@
+package com.example;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Player;
+
+import java.lang.reflect.Method;
+
+public final class NarcotixDrugOverlay {
+    private NarcotixDrugOverlay() {
+    }
+
+    public static void render(Object graphics) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) {
+            return;
+        }
+
+        Player player = minecraft.player;
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        long now = System.currentTimeMillis();
+
+        if (player.hasEffect(NarcotixEffects.COKE_RUSH)) {
+            renderCokeRush(graphics, width, height, now);
+        }
+
+        if (player.hasEffect(NarcotixEffects.WEED_HIGH)) {
+            renderWeedHigh(graphics, width, height, now, player);
+        }
+    }
+
+    private static void renderCokeRush(Object graphics, int width, int height, long now) {
+        // Two quick beats plus a slower pressure wave, like a heartbeat.
+        double beatA = Math.pow(Math.abs(Math.sin(now / 105.0D)), 3.0D);
+        double beatB = Math.pow(Math.abs(Math.sin((now + 145L) / 165.0D)), 5.0D) * 0.55D;
+        double heartbeat = Math.min(1.0D, beatA + beatB);
+        double pressure = 0.5D + 0.5D * Math.sin(now / 520.0D);
+
+        int edge = Math.max(10, Math.min(width, height) / 8);
+        int innerEdge = Math.max(4, edge / 3);
+        int pulseAlpha = clampAlpha(30 + (int)(heartbeat * 120.0D));
+        int darkRedAlpha = clampAlpha(22 + (int)(pressure * 34.0D));
+
+        // Dark red edge vignette only. This pulses red without brightening/whitening the whole screen.
+        fill(graphics, 0, 0, width, edge, argb(pulseAlpha, 170, 0, 0));
+        fill(graphics, 0, height - edge, width, height, argb(pulseAlpha, 170, 0, 0));
+        fill(graphics, 0, 0, edge, height, argb(pulseAlpha, 170, 0, 0));
+        fill(graphics, width - edge, 0, width, height, argb(pulseAlpha, 170, 0, 0));
+
+        // A deeper secondary red layer at the very outside, so the pulse has weight but does not wash out the center.
+        fill(graphics, 0, 0, width, innerEdge, argb(darkRedAlpha, 70, 0, 0));
+        fill(graphics, 0, height - innerEdge, width, height, argb(darkRedAlpha, 70, 0, 0));
+        fill(graphics, 0, 0, innerEdge, height, argb(darkRedAlpha, 70, 0, 0));
+        fill(graphics, width - innerEdge, 0, width, height, argb(darkRedAlpha, 70, 0, 0));
+
+        // Thin red heartbeat flashes near the edges. No white fill anywhere.
+        if (heartbeat > 0.72D) {
+            int lineAlpha = clampAlpha(45 + (int)(heartbeat * 90.0D));
+            int yTop = Math.max(1, edge + 4);
+            int yBottom = Math.max(yTop + 1, height - edge - 5);
+            fill(graphics, edge, yTop, width - edge, yTop + 2, argb(lineAlpha, 190, 0, 0));
+            fill(graphics, edge, yBottom, width - edge, yBottom + 2, argb(lineAlpha, 190, 0, 0));
+        }
+    }
+
+    private static void renderWeedHigh(Object graphics, int width, int height, long now, Player player) {
+        double pulse = 0.5D + 0.5D * Math.sin(now / 900.0D);
+        double drift = Math.sin(now / 700.0D);
+        double bob = Math.cos(now / 810.0D);
+
+        double movement = Math.min(1.0D, Math.abs(player.getDeltaMovement().x) + Math.abs(player.getDeltaMovement().z));
+        int trailOffsetX = (int)(drift * (5.0D + movement * 18.0D));
+        int trailOffsetY = (int)(bob * (3.0D + movement * 10.0D));
+
+        int warmAlpha = clampAlpha(48 + (int)(pulse * 34.0D));
+        int hazeAlpha = clampAlpha(24 + (int)(pulse * 34.0D));
+        int fuzzAlpha = clampAlpha(18 + (int)(movement * 34.0D));
+
+        fill(graphics, 0, 0, width, height, argb(warmAlpha, 255, 176, 78));
+        fill(graphics, trailOffsetX - 16, trailOffsetY - 16, width + trailOffsetX + 16, height + trailOffsetY + 16, argb(hazeAlpha, 166, 255, 120));
+        fill(graphics, -trailOffsetX - 22, -trailOffsetY - 22, width - trailOffsetX + 22, height - trailOffsetY + 22, argb(hazeAlpha / 2, 255, 225, 135));
+
+        int edge = Math.max(16, Math.min(width, height) / 6);
+        int edgeAlpha = clampAlpha(30 + (int)(pulse * 42.0D));
+        fill(graphics, 0, 0, width, edge, argb(edgeAlpha, 80, 45, 25));
+        fill(graphics, 0, height - edge, width, height, argb(edgeAlpha, 80, 45, 25));
+        fill(graphics, 0, 0, edge, height, argb(edgeAlpha, 80, 45, 25));
+        fill(graphics, width - edge, 0, width, height, argb(edgeAlpha, 80, 45, 25));
+
+        int seed = (int)(now / 55L);
+        for (int i = 0; i < 56; i++) {
+            int x = positiveMod(seed * 37 + i * 83, Math.max(width, 1));
+            int y = positiveMod(seed * 61 + i * 47, Math.max(height, 1));
+            int w = 8 + positiveMod(seed + i * 11, 32);
+            int h = 1 + positiveMod(seed + i * 7, 5);
+            int a = clampAlpha(fuzzAlpha + positiveMod(seed + i * 13, 18));
+            fill(graphics, x, y, Math.min(width, x + w), Math.min(height, y + h), argb(a, 255, 238, 174));
+        }
+
+        if (pulse > 0.88D) {
+            fill(graphics, 0, 0, width, height, argb(22, 255, 245, 185));
+        }
+    }
+
+    private static int positiveMod(int value, int mod) {
+        int result = value % mod;
+        return result < 0 ? result + mod : result;
+    }
+
+    private static int clampAlpha(int value) {
+        if (value < 0) return 0;
+        if (value > 255) return 255;
+        return value;
+    }
+
+    private static int argb(int alpha, int red, int green, int blue) {
+        return ((alpha & 255) << 24) | ((red & 255) << 16) | ((green & 255) << 8) | (blue & 255);
+    }
+
+    private static void fill(Object graphics, int x1, int y1, int x2, int y2, int color) {
+        try {
+            Method fill = graphics.getClass().getMethod("fill", int.class, int.class, int.class, int.class, int.class);
+            fill.invoke(graphics, x1, y1, x2, y2, color);
+        } catch (Throwable ignored) {
+            // Skip the overlay instead of crashing if mappings change again.
+        }
+    }
+}

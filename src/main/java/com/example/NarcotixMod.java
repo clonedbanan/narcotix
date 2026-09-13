@@ -1,6 +1,8 @@
 package com.example;
 
 
+
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.level.block.Block;
 import java.util.function.Function;
 
@@ -26,6 +28,9 @@ import org.slf4j.LoggerFactory;
 public class NarcotixMod implements ModInitializer {
     public static final String MOD_ID = "narcotix";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+    public static final SoundEvent LOOSE_COKE_SNIFF_SOUND = registerSoundEvent("item.loose_coke_sniff");
+    public static final SoundEvent COCAINE_HEARTBEAT_SOUND = registerSoundEvent("item.cocaine_heartbeat");
 
     public static final Block WEED_CROP = registerBlockNoItem(
             "weed_crop",
@@ -86,10 +91,7 @@ public class NarcotixMod implements ModInitializer {
             Item::new
     );
 
-    public static final Item LOOSE_COKE = registerItem(
-            "loose_coke",
-            Item::new
-    );
+    public static final Item LOOSE_COKE = registerItem("loose_coke", properties -> new LooseCokeItem(properties));
 
     public static final Item COKE_BRICK = registerItem(
             "coke_brick",
@@ -135,6 +137,7 @@ public class NarcotixMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        NarcotixEffects.register();
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.NATURAL_BLOCKS).register(entries -> {
             entries.accept(WEED_SEEDS);
             entries.accept(COCAINE_SEEDS);
@@ -209,6 +212,10 @@ LOGGER.info("Narcotix loaded.");
         );
 
         return block;
+    }
+    private static SoundEvent registerSoundEvent(String name) {
+        Identifier id = Identifier.fromNamespaceAndPath(MOD_ID, name);
+        return Registry.register(BuiltInRegistries.SOUND_EVENT, id, SoundEvent.createVariableRangeEvent(id));
     }
 
 

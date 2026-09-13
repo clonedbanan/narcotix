@@ -561,7 +561,16 @@ BlockState baseState = level.getBlockState(basePos);
     // the target after the golem has already started walking toward them.
     public boolean canBeSeenAsEnemy() {
         return false;
-    }    private static boolean isNarcotixIronGolemEntity(Entity entity) {
+    }
+
+    public boolean isAlliedTo(Entity entity) {
+        if (isNarcotixIronGolemEntity(entity)) {
+            return true;
+        }
+        return super.isAlliedTo(entity);
+    }
+
+    private static boolean isNarcotixIronGolemEntity(Entity entity) {
         return entity != null
                 && entity.getType() != null
                 && BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()) != null

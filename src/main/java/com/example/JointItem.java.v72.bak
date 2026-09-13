@@ -16,7 +16,6 @@ import net.minecraft.world.level.Level;
 public class JointItem extends Item {
     public static final int USE_DURATION = 90;
     public static final int WEED_HIGH_DURATION_TICKS = 20 * 60;
-    public static final int TOBACCO_DURATION_TICKS = 20 * 30;
     public static final int HUNGER_DURATION_TICKS = 20 * 5;
 
     public JointItem(Properties properties) {
@@ -42,12 +41,8 @@ public class JointItem extends Item {
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
         if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
-            if (stack.is(NarcotixMod.CIGARETTE)) {
-                entity.addEffect(new MobEffectInstance(NarcotixEffects.TOBACCO, TOBACCO_DURATION_TICKS, 0));
-            } else {
-                entity.addEffect(new MobEffectInstance(MobEffects.HUNGER, HUNGER_DURATION_TICKS, 0));
-                entity.addEffect(new MobEffectInstance(NarcotixEffects.WEED_HIGH, WEED_HIGH_DURATION_TICKS, 0));
-            }
+            entity.addEffect(new MobEffectInstance(MobEffects.HUNGER, HUNGER_DURATION_TICKS, 0));
+            entity.addEffect(new MobEffectInstance(NarcotixEffects.WEED_HIGH, WEED_HIGH_DURATION_TICKS, 0));
 
             serverLevel.sendParticles(
                     ParticleTypes.CAMPFIRE_COSY_SMOKE,
