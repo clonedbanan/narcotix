@@ -1,0 +1,145 @@
+package com.example;
+
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
+public final class NarcotixBrewingRecipes {
+    private static boolean registered = false;
+    private static int ticks = 0;
+
+    private static final int CHECK_EVERY_TICKS = 10;
+    private static final int SCAN_RADIUS = 12;
+    private static final int BOTTLE_SLOT_START = 0;
+    private static final int BOTTLE_SLOT_END = 2;
+    private static final int INGREDIENT_SLOT = 3;
+
+    private NarcotixBrewingRecipes() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+
+        registered = true;
+
+        // This makes the brewing stand usable even if vanilla/Fabric brewing APIs reject custom ingredients.
+        // Right-click a brewing stand while holding an LSD Shard to put one shard in the ingredient slot.
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (world.isClientSide()) {
+                return InteractionResult.PASS;
+            }
+
+            BlockPos pos = hitResult.getBlockPos();
+            if (!isBrewingStand(world, pos)) {
+                return InteractionResult.PASS;
+            }
+
+            ItemStack held = player.getItemInHand(hand);
+            if (held.isEmpty() || held.getItem() != NarcotixMod.LSD_SHARD) {
+                return InteractionResult.PASS;
+            }
+
+            BlockEntity blockEntity = world.getBlockEntity(pos);
+            if (!(blockEntity instanceof Container container) || container.getContainerSize() <= INGREDIENT_SLOT) {
+                return InteractionResult.PASS;
+            }
+
+            ItemStack ingredient = container.getItem(INGREDIENT_SLOT);
+            if (!ingredient.isEmpty()) {
+                return InteractionResult.PASS;
+            }
+
+            container.setItem(INGREDIENT_SLOT, new ItemStack(NarcotixMod.LSD_SHARD, 1));
+            container.setChanged();
+
+            if (!player.getAbilities().instabuild) {
+                held.shrink(1);
+            }
+
+            return InteractionResult.SUCCESS;
+        });
+
+        ServerTickEvents.END_SERVER_TICK.register(NarcotixBrewingRecipes::tickServer);
+    }
+
+    private static void tickServer(MinecraftServer server) {
+        ticks++;
+        if (ticks < CHECK_EVERY_TICKS) {
+            return;
+        }
+        ticks = 0;
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerLevel level = player.level();
+            if (level.dimension() != Level.OVERWORLD) {
+                continue;
+            }
+
+            scanBrewingStandsNearPlayer(level, player.blockPosition());
+        }
+    }
+
+    private static void scanBrewingStandsNearPlayer(ServerLevel level, BlockPos center) {
+        BlockPos min = center.offset(-SCAN_RADIUS, -SCAN_RADIUS, -SCAN_RADIUS);
+        BlockPos max = center.offset(SCAN_RADIUS, SCAN_RADIUS, SCAN_RADIUS);
+
+        for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
+            if (!isBrewingStand(level, pos)) {
+                continue;
+            }
+
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof Container container) {
+                processBrewingStand(container);
+            }
+        }
+    }
+
+    private static void processBrewingStand(Container container) {
+        if (container.getContainerSize() <= INGREDIENT_SLOT) {
+            return;
+        }
+
+        ItemStack ingredient = container.getItem(INGREDIENT_SLOT);
+        if (ingredient.isEmpty() || ingredient.getItem() != NarcotixMod.LSD_SHARD) {
+            return;
+        }
+
+        boolean brewedAny = false;
+
+        for (int slot = BOTTLE_SLOT_START; slot <= BOTTLE_SLOT_END; slot++) {
+            ItemStack bottle = container.getItem(slot);
+
+            // Water bottles are still Items.POTION internally, so this catches them too.
+            if (!bottle.isEmpty() && bottle.getItem() == Items.POTION) {
+                container.setItem(slot, new ItemStack(NarcotixMod.BOTTLE_OF_PURE_ACID, 1));
+                brewedAny = true;
+            }
+        }
+
+        if (brewedAny) {
+            ingredient.shrink(1);
+            if (ingredient.isEmpty()) {
+                container.setItem(INGREDIENT_SLOT, ItemStack.EMPTY);
+            }
+            container.setChanged();
+        }
+    }
+
+    private static boolean isBrewingStand(Level level, BlockPos pos) {
+        String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
+        return "minecraft:brewing_stand".equals(id);
+    }
+}

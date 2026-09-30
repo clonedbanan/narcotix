@@ -1,0 +1,195 @@
+package com.example;
+
+import com.mojang.authlib.GameProfile;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Client-only Acid hallucinations.
+ * These fake players are inserted only into the local client world while the local player has hidden vanilla Nausea.
+ * They are never spawned on the server, so other players cannot see them.
+ */
+public final class AcidHallucinationManager {
+    private static final int MAX_HALLUCINATIONS = 7;
+    private static final List<Hallucination> HALLUCINATIONS = new ArrayList<>();
+    private static int spawnCooldown = 0;
+    private static int nextFakeEntityId = -900000;
+    private static boolean wasActive = false;
+    private static boolean registered = false;
+
+    private AcidHallucinationManager() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        ClientTickEvents.END_CLIENT_TICK.register(AcidHallucinationManager::tick);
+        System.out.println("[Narcotix] Registered Acid hallucination manager v117.");
+    }
+
+    private static void tick(Minecraft client) {
+        if (client == null || client.player == null || client.level == null) {
+            clear(null);
+            return;
+        }
+
+        Player player = client.player;
+        ClientLevel level = client.level;
+
+        // The Acid item applies hidden vanilla NAUSEA for the same 45s duration.
+        // Checking this is more mapping-stable than trying to locate the custom effect holder from client code.
+        boolean active = player.hasEffect(MobEffects.NAUSEA);
+
+        if (!active) {
+            if (wasActive || !HALLUCINATIONS.isEmpty()) {
+                clear(level);
+                System.out.println("[Narcotix] Acid hallucinations cleared.");
+            }
+            wasActive = false;
+            spawnCooldown = 0;
+            return;
+        }
+
+        if (!wasActive) {
+            System.out.println("[Narcotix] Acid hallucinations active; spawning fake client-only players.");
+            spawnCooldown = 0;
+        }
+        wasActive = true;
+
+        spawnCooldown--;
+        if (spawnCooldown <= 0 && HALLUCINATIONS.size() < MAX_HALLUCINATIONS) {
+            spawnCooldown = 18;
+            spawnOne(level, player, HALLUCINATIONS.size());
+        }
+
+        updateAll(level, player);
+    }
+
+    private static void spawnOne(ClientLevel level, Player player, int index) {
+        try {
+            UUID uuid = UUID.randomUUID();
+            GameProfile profile = new GameProfile(uuid, index % 2 == 0 ? "Steve" : "Alex");
+            RemotePlayer fake = new RemotePlayer(level, profile);
+            fake.setId(nextFakeEntityId--);
+            fake.setSilent(true);
+            fake.setNoGravity(true);
+            fake.setInvisible(false);
+
+            Hallucination h = new Hallucination(fake, 360 + (index * 23), index);
+            placeNearPlayer(h, player, true);
+
+            level.addEntity(fake);
+            HALLUCINATIONS.add(h);
+
+            System.out.println("[Narcotix] Spawned acid hallucination at " + fake.getX() + ", " + fake.getY() + ", " + fake.getZ());
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn acid hallucination: " + t);
+        }
+    }
+
+    private static void updateAll(ClientLevel level, Player player) {
+        Iterator<Hallucination> it = HALLUCINATIONS.iterator();
+        while (it.hasNext()) {
+            Hallucination h = it.next();
+            h.life--;
+            if (h.life <= 0 || h.fake.isRemoved() || h.fake.level() != level) {
+                remove(level, h.fake);
+                it.remove();
+                continue;
+            }
+            placeNearPlayer(h, player, false);
+        }
+    }
+
+    private static void placeNearPlayer(Hallucination h, Player player, boolean firstPlacement) {
+        double time = player.tickCount * 0.035D + h.seed;
+
+        // Bias several hallucinations into the player's view instead of random positions behind them.
+        double yawRad = Math.toRadians(player.getYRot());
+        double forwardX = -Math.sin(yawRad);
+        double forwardZ = Math.cos(yawRad);
+        double rightX = Math.cos(yawRad);
+        double rightZ = Math.sin(yawRad);
+
+        double distance = 4.0D + (h.slot % 4) * 1.35D;
+        double side = ((h.slot % 3) - 1) * 2.2D + Math.sin(time) * 0.45D;
+
+        double x = player.getX() + forwardX * distance + rightX * side;
+        double y = player.getY();
+        double z = player.getZ() + forwardZ * distance + rightZ * side;
+
+        // Small unsettling drift, but keep them visible and near eye level.
+        if (!firstPlacement) {
+            x += Math.sin(time * 1.7D) * 0.12D;
+            z += Math.cos(time * 1.3D) * 0.12D;
+        }
+
+        RemotePlayer fake = h.fake;
+        fake.setPos(x, y, z);
+        fake.xo = x;
+        fake.yo = y;
+        fake.zo = z;
+        fake.setOnGround(true);
+
+        double dx = player.getX() - x;
+        double dz = player.getZ() - z;
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+        fake.setYRot(yaw);
+        fake.setXRot(0.0F);
+        fake.yRotO = yaw;
+        fake.xRotO = 0.0F;
+        fake.yBodyRot = yaw;
+        fake.yBodyRotO = yaw;
+        fake.yHeadRot = yaw;
+        fake.yHeadRotO = yaw;
+    }
+
+    private static void clear(ClientLevel level) {
+        if (level != null) {
+            for (Hallucination h : HALLUCINATIONS) {
+                remove(level, h.fake);
+            }
+        }
+        HALLUCINATIONS.clear();
+    }
+
+    private static void remove(ClientLevel level, Entity entity) {
+        try {
+            if (level != null) {
+                level.removeEntity(entity.getId(), Entity.RemovalReason.DISCARDED);
+            }
+            entity.remove(Entity.RemovalReason.DISCARDED);
+        } catch (Throwable ignored) {
+            try {
+                entity.discard();
+            } catch (Throwable ignoredAgain) {
+            }
+        }
+    }
+
+    private static final class Hallucination {
+        final RemotePlayer fake;
+        int life;
+        final int slot;
+        final double seed;
+
+        Hallucination(RemotePlayer fake, int life, int slot) {
+            this.fake = fake;
+            this.life = life;
+            this.slot = slot;
+            this.seed = slot * 3.17D + Math.random() * 12.0D;
+        }
+    }
+}

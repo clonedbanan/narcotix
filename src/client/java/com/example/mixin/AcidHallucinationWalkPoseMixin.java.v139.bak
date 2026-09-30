@@ -1,0 +1,57 @@
+package com.example.mixin;
+
+import com.example.AcidHallucinationManager;
+import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(HumanoidModel.class)
+public class AcidHallucinationWalkPoseMixin {
+    @Shadow @Final public ModelPart rightLeg;
+    @Shadow @Final public ModelPart leftLeg;
+    @Shadow @Final public ModelPart rightArm;
+    @Shadow @Final public ModelPart leftArm;
+
+    @Inject(
+            method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V",
+            at = @At("TAIL")
+    )
+    private void narcotix$acidHallucinationWalkPose(HumanoidRenderState state, CallbackInfo ci) {
+        if (!(state instanceof AvatarRenderState)) {
+            return;
+        }
+
+        if (!AcidHallucinationManager.hasActiveHallucinations()) {
+            return;
+        }
+
+        /*
+         * Fake RemotePlayer hallucinations slide because their normal networked player
+         * walk state is not populated like a real player. So while Acid hallucinations
+         * are present, force a light render-only walk cycle on player models.
+         * This does not move entities and does not touch smoking/use-item state.
+         */
+        float time = (System.currentTimeMillis() % 100000L) / 1000.0F;
+        float swing = (float)Math.sin(time * 7.5F) * 0.72F;
+        float armSwing = swing * 0.42F;
+
+        this.rightLeg.xRot = swing;
+        this.leftLeg.xRot = -swing;
+        this.rightLeg.yRot = 0.0F;
+        this.leftLeg.yRot = 0.0F;
+        this.rightLeg.zRot = 0.0F;
+        this.leftLeg.zRot = 0.0F;
+
+        if (!state.isUsingItem) {
+            this.rightArm.xRot += -armSwing;
+            this.leftArm.xRot += armSwing;
+        }
+    }
+}

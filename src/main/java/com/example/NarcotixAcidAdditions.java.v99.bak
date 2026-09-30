@@ -1,0 +1,38 @@
+package com.example;
+
+import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroupEntries;
+import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Item;
+
+public final class NarcotixAcidAdditions {
+    private static boolean registered = false;
+
+    public static final Item LSD_SHARD = registerItem("lsd_shard", new Item.Properties());
+
+    private NarcotixAcidAdditions() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.INGREDIENTS).register(NarcotixAcidAdditions::addIngredients);
+    }
+
+    private static void addIngredients(FabricItemGroupEntries entries) {
+        entries.accept(LSD_SHARD);
+    }
+
+    private static Item registerItem(String name, Item.Properties properties) {
+        Identifier id = Identifier.fromNamespaceAndPath(NarcotixMod.MOD_ID, name);
+        ResourceKey<Item> key = ResourceKey.create(BuiltInRegistries.ITEM.key(), id);
+        return Registry.register(BuiltInRegistries.ITEM, key, new Item(properties.setId(key)));
+    }
+}

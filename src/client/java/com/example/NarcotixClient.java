@@ -14,6 +14,8 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 public class NarcotixClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        AcidRainbowOverlay.register();
+        AcidHallucinationManager.register();
 EntityRendererRegistry.register((net.minecraft.world.entity.EntityType) NarcotixCopAdditions.COP, (net.minecraft.client.renderer.entity.EntityRendererProvider) CopRenderer::new);
 EntityRendererRegistry.register(NarcotixEntities.WANDERING_PLUG, WanderingPlugRenderer::new);
         LivingEntityRenderLayerRegistrationCallback.EVENT.register((entityType, renderer, helper, context) -> {

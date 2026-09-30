@@ -1,0 +1,345 @@
+package com.example;
+
+import com.mojang.authlib.GameProfile;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.Sheep;
+
+public final class AcidHallucinationManager {
+    private static final Random RANDOM = new Random();
+    private static final List<Hallucination> HALLUCINATIONS = new ArrayList<>();
+    private static final List<SheepHallucination> SHEEP_HALLUCINATIONS = new ArrayList<>();
+
+    private static boolean wasActive = false;
+    private static int personSpawnCooldown = 0;
+    private static int sheepSpawnCooldown = 35;
+    private static int nextEntityId = -100000;
+
+    private AcidHallucinationManager() {}
+
+    public static void register() {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> tick(client));
+        System.out.println("[Narcotix] Registered Acid hallucination manager v144 rainbow sheep.");
+    }
+
+    public static boolean isHallucination(Object entity) {
+        for (Hallucination h : HALLUCINATIONS) {
+            if (h.fake == entity) return true;
+        }
+        for (SheepHallucination h : SHEEP_HALLUCINATIONS) {
+            if (h.sheep == entity) return true;
+        }
+        return false;
+    }
+
+    private static void tick(Minecraft client) {
+        LocalPlayer player = client.player;
+        ClientLevel level = client.level;
+        if (player == null || level == null) {
+            clear(level);
+            wasActive = false;
+            return;
+        }
+
+        boolean active = hasAcidVisuals(player);
+        if (!active) {
+            if (wasActive || !HALLUCINATIONS.isEmpty() || !SHEEP_HALLUCINATIONS.isEmpty()) {
+                clear(level);
+                System.out.println("[Narcotix] Acid hallucinations cleared.");
+            }
+            wasActive = false;
+            return;
+        }
+
+        if (!wasActive) {
+            System.out.println("[Narcotix] Acid hallucinations active; spawning fake people and rainbow sheep.");
+            personSpawnCooldown = 0;
+            sheepSpawnCooldown = 15;
+        }
+        wasActive = true;
+
+        if (personSpawnCooldown-- <= 0 && HALLUCINATIONS.size() < 6) {
+            spawnPerson(player, level, HALLUCINATIONS.size());
+            personSpawnCooldown = 25 + RANDOM.nextInt(35);
+        }
+
+        if (sheepSpawnCooldown-- <= 0 && SHEEP_HALLUCINATIONS.size() < 4) {
+            spawnRainbowSheep(player, level, SHEEP_HALLUCINATIONS.size());
+            sheepSpawnCooldown = 45 + RANDOM.nextInt(45);
+        }
+
+        Iterator<Hallucination> people = HALLUCINATIONS.iterator();
+        while (people.hasNext()) {
+            Hallucination h = people.next();
+            h.life--;
+            if (h.life <= 0 || h.fake.isRemoved()) {
+                safeRemove(h.fake);
+                people.remove();
+                continue;
+            }
+            updatePerson(player, h);
+        }
+
+        Iterator<SheepHallucination> sheepIt = SHEEP_HALLUCINATIONS.iterator();
+        while (sheepIt.hasNext()) {
+            SheepHallucination h = sheepIt.next();
+            h.life--;
+            if (h.life <= 0 || h.sheep.isRemoved()) {
+                safeRemove(h.sheep);
+                sheepIt.remove();
+                continue;
+            }
+            updateSheep(player, h);
+        }
+    }
+
+    private static boolean hasAcidVisuals(LocalPlayer player) {
+        if (player.hasEffect(MobEffects.NAUSEA)) return true;
+        try {
+            return player.hasEffect(NarcotixEffects.ACID);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void spawnPerson(LocalPlayer player, ClientLevel level, int slot) {
+        try {
+            GameProfile profile = new GameProfile(UUID.nameUUIDFromBytes(("narcotix-acid-hallucination-person-" + System.nanoTime()).getBytes()), "Steve");
+            RemotePlayer fake = new RemotePlayer(level, profile);
+            fake.setInvisible(false);
+            fake.noPhysics = false;
+
+            double angle = Math.toRadians(player.getYRot()) + (RANDOM.nextDouble() - 0.5D) * 1.9D;
+            double dist = 4.0D + RANDOM.nextDouble() * 4.0D;
+            double x = player.getX() - Math.sin(angle) * dist;
+            double z = player.getZ() + Math.cos(angle) * dist;
+            double y = player.getY();
+
+            fake.setPos(x, y, z);
+            facePlayer(fake, player);
+            fake.setOnGround(true);
+            fake.setShiftKeyDown(false);
+            fake.setSprinting(false);
+            fake.setNoGravity(false);
+
+            int id = nextEntityId--;
+            fake.setId(id);
+            level.addEntity(fake);
+            HALLUCINATIONS.add(new Hallucination(fake, 20 * 10 + RANDOM.nextInt(20 * 14), slot, angle));
+            System.out.println("[Narcotix] Spawned acid person hallucination at " + x + ", " + y + ", " + z);
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn acid person hallucination: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void spawnRainbowSheep(LocalPlayer player, ClientLevel level, int slot) {
+        try {
+            Sheep sheep = new Sheep(EntityType.SHEEP, level);
+            sheep.setInvisible(false);
+            sheep.noPhysics = false;
+            sheep.setCustomName(Component.literal("jeb_"));
+            sheep.setCustomNameVisible(false);
+            sheep.setNoAi(false);
+
+            double angle = Math.toRadians(player.getYRot()) + (RANDOM.nextDouble() - 0.5D) * 2.3D;
+            double dist = 5.0D + RANDOM.nextDouble() * 5.0D;
+            double x = player.getX() - Math.sin(angle) * dist;
+            double z = player.getZ() + Math.cos(angle) * dist;
+            double y = player.getY();
+
+            sheep.setPos(x, y, z);
+            faceSheep(sheep, player);
+            sheep.setOnGround(true);
+            sheep.setNoGravity(false);
+
+            int id = nextEntityId--;
+            sheep.setId(id);
+            level.addEntity(sheep);
+            SHEEP_HALLUCINATIONS.add(new SheepHallucination(sheep, 20 * 8 + RANDOM.nextInt(20 * 12), slot, angle));
+            System.out.println("[Narcotix] Spawned rainbow sheep hallucination at " + x + ", " + y + ", " + z);
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn rainbow sheep hallucination: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void updatePerson(LocalPlayer player, Hallucination h) {
+        h.age++;
+
+        double orbit = h.baseAngle + Math.sin(h.age * 0.033D + h.slot) * 0.7D;
+        double dist = 4.5D + Math.sin(h.age * 0.019D + h.slot * 2.0D) * 1.4D;
+        double targetX = player.getX() - Math.sin(orbit) * dist;
+        double targetZ = player.getZ() + Math.cos(orbit) * dist;
+        double targetY = player.getY();
+
+        double dx = targetX - h.fake.getX();
+        double dz = targetZ - h.fake.getZ();
+        double step = 0.035D;
+        double moveX = clamp(dx, -step, step);
+        double moveZ = clamp(dz, -step, step);
+
+        h.fake.xo = h.fake.getX();
+        h.fake.yo = h.fake.getY();
+        h.fake.zo = h.fake.getZ();
+        h.fake.move(net.minecraft.world.entity.MoverType.SELF, new net.minecraft.world.phys.Vec3(moveX, targetY - h.fake.getY(), moveZ));
+        h.fake.setDeltaMovement(moveX, 0.0D, moveZ);
+        h.fake.setOnGround(true);
+        facePlayer(h.fake, player);
+        tryUpdateWalkAnimation(h.fake, Math.sqrt(moveX * moveX + moveZ * moveZ));
+    }
+
+    private static void updateSheep(LocalPlayer player, SheepHallucination h) {
+        h.age++;
+
+        double orbit = h.baseAngle + Math.sin(h.age * 0.026D + h.slot * 1.7D) * 0.9D;
+        double dist = 5.0D + Math.sin(h.age * 0.017D + h.slot * 2.4D) * 1.8D;
+        double targetX = player.getX() - Math.sin(orbit) * dist;
+        double targetZ = player.getZ() + Math.cos(orbit) * dist;
+        double targetY = player.getY();
+
+        double dx = targetX - h.sheep.getX();
+        double dz = targetZ - h.sheep.getZ();
+        double step = 0.032D;
+        double moveX = clamp(dx, -step, step);
+        double moveZ = clamp(dz, -step, step);
+
+        h.sheep.xo = h.sheep.getX();
+        h.sheep.yo = h.sheep.getY();
+        h.sheep.zo = h.sheep.getZ();
+        h.sheep.move(net.minecraft.world.entity.MoverType.SELF, new net.minecraft.world.phys.Vec3(moveX, targetY - h.sheep.getY(), moveZ));
+        h.sheep.setDeltaMovement(moveX, 0.0D, moveZ);
+        h.sheep.setOnGround(true);
+        faceSheep(h.sheep, player);
+    }
+
+    private static void facePlayer(RemotePlayer fake, LocalPlayer player) {
+        double dx = player.getX() - fake.getX();
+        double dz = player.getZ() - fake.getZ();
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+        fake.setYRot(yaw);
+        fake.setYHeadRot(yaw);
+        fake.yHeadRotO = yaw;
+        fake.yBodyRot = yaw;
+        fake.yBodyRotO = yaw;
+        fake.setXRot(0.0F);
+    }
+
+    private static void faceSheep(Sheep sheep, LocalPlayer player) {
+        double dx = player.getX() - sheep.getX();
+        double dz = player.getZ() - sheep.getZ();
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+        sheep.setYRot(yaw);
+        sheep.setYHeadRot(yaw);
+        sheep.yHeadRotO = yaw;
+        sheep.yBodyRot = yaw;
+        sheep.yBodyRotO = yaw;
+        sheep.setXRot(0.0F);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static void tryUpdateWalkAnimation(RemotePlayer fake, double speed) {
+        trySetFloat(fake, "walkAnimationSpeed", (float)Math.min(0.65D, speed * 8.0D));
+        trySetFloat(fake, "walkAnimationPosition", getFloat(fake, "walkAnimationPosition") + (float)(speed * 1.8D));
+        trySetFloat(fake, "animationSpeed", (float)Math.min(0.65D, speed * 8.0D));
+        trySetFloat(fake, "animationPosition", getFloat(fake, "animationPosition") + (float)(speed * 1.8D));
+    }
+
+    private static float getFloat(Object obj, String name) {
+        try {
+            Field f = findField(obj.getClass(), name);
+            if (f == null) return 0.0F;
+            f.setAccessible(true);
+            return f.getFloat(obj);
+        } catch (Throwable ignored) {
+            return 0.0F;
+        }
+    }
+
+    private static void trySetFloat(Object obj, String name, float value) {
+        try {
+            Field f = findField(obj.getClass(), name);
+            if (f == null) return;
+            f.setAccessible(true);
+            f.setFloat(obj, value);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static Field findField(Class<?> cls, String name) {
+        Class<?> c = cls;
+        while (c != null) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                c = c.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static void clear(ClientLevel level) {
+        for (Hallucination h : HALLUCINATIONS) {
+            safeRemove(h.fake);
+        }
+        for (SheepHallucination h : SHEEP_HALLUCINATIONS) {
+            safeRemove(h.sheep);
+        }
+        HALLUCINATIONS.clear();
+        SHEEP_HALLUCINATIONS.clear();
+    }
+
+    private static void safeRemove(Entity entity) {
+        try {
+            entity.discard();
+        } catch (Throwable ignored) {
+            try { entity.remove(Entity.RemovalReason.DISCARDED); } catch (Throwable ignored2) {}
+        }
+    }
+
+    private static final class Hallucination {
+        final RemotePlayer fake;
+        int life;
+        final int slot;
+        final double baseAngle;
+        int age;
+
+        Hallucination(RemotePlayer fake, int life, int slot, double baseAngle) {
+            this.fake = fake;
+            this.life = life;
+            this.slot = slot;
+            this.baseAngle = baseAngle;
+            this.age = RANDOM.nextInt(80);
+        }
+    }
+
+    private static final class SheepHallucination {
+        final Sheep sheep;
+        int life;
+        final int slot;
+        final double baseAngle;
+        int age;
+
+        SheepHallucination(Sheep sheep, int life, int slot, double baseAngle) {
+            this.sheep = sheep;
+            this.life = life;
+            this.slot = slot;
+            this.baseAngle = baseAngle;
+            this.age = RANDOM.nextInt(80);
+        }
+    }
+}

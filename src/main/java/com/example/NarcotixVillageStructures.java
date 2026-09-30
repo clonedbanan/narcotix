@@ -13,14 +13,16 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 public final class NarcotixVillageStructures {
-    private static final int WEIGHT = 100000;
+    // House-pool injection is much safer than town-center injection.
+    // 25 was stable but could feel rare; 80 should be common without using the old broken 100000 force value.
+    private static final int WEIGHT = 80;
 
     private static final VillageStation[] STATIONS = new VillageStation[] {
-            new VillageStation("village/plains/town_centers", "narcotix:village/plains/cop_station_center"),
-            new VillageStation("village/desert/town_centers", "narcotix:village/desert/cop_station_center"),
-            new VillageStation("village/savanna/town_centers", "narcotix:village/savanna/cop_station_center"),
-            new VillageStation("village/snowy/town_centers", "narcotix:village/snowy/cop_station_center"),
-            new VillageStation("village/taiga/town_centers", "narcotix:village/taiga/cop_station_center")
+            new VillageStation("village/plains/houses", "narcotix:village/plains/cop_station"),
+            new VillageStation("village/desert/houses", "narcotix:village/desert/cop_station"),
+            new VillageStation("village/savanna/houses", "narcotix:village/savanna/cop_station"),
+            new VillageStation("village/snowy/houses", "narcotix:village/snowy/cop_station"),
+            new VillageStation("village/taiga/houses", "narcotix:village/taiga/cop_station")
     };
 
     private static boolean registered = false;
@@ -30,16 +32,14 @@ public final class NarcotixVillageStructures {
 
     public static void register() {
         if (registered) {
-            System.out.println("[Narcotix] NarcotixVillageStructures.register() called again; ignoring duplicate.");
             return;
         }
-
         registered = true;
-        System.out.println("[Narcotix] NarcotixVillageStructures.register() called. Using center police station injection.");
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            System.out.println("[Narcotix] SERVER_STARTING reached; injecting center cop stations into village town centers.");
-            injectAll(server.registryAccess().lookupOrThrow(Registries.TEMPLATE_POOL));
+            System.out.println("[Narcotix] SERVER_STARTING reached; injecting cop stations into village house pools.");
+            Registry<StructureTemplatePool> registry = server.registryAccess().lookupOrThrow(Registries.TEMPLATE_POOL);
+            injectAll(registry);
         });
     }
 
@@ -51,24 +51,24 @@ public final class NarcotixVillageStructures {
             }
         }
 
-        System.out.println("[Narcotix] Center cop station village injection finished. Pools injected: " + injected + "/" + STATIONS.length + ".");
+        System.out.println("[Narcotix] House-pool cop station village injection finished. Pools injected: " + injected + "/" + STATIONS.length + ".");
     }
 
     private static boolean injectOne(Registry<StructureTemplatePool> registry, VillageStation station) {
         ResourceKey<StructureTemplatePool> poolKey = ResourceKey.create(
                 Registries.TEMPLATE_POOL,
-                Identifier.withDefaultNamespace(station.poolPath)
+                Identifier.fromNamespaceAndPath("minecraft", station.poolPath)
         );
 
         StructureTemplatePool pool = getPool(registry, poolKey);
 
         if (pool == null) {
-            System.out.println("[Narcotix] Could not find template pool minecraft:" + station.poolPath + ". Center cop station was not injected.");
+            System.out.println("[Narcotix] Could not find template pool minecraft:" + station.poolPath + ". Cop station was not injected.");
             return false;
         }
 
         if (alreadyContains(pool, station.stationId)) {
-            System.out.println("[Narcotix] Center cop station already present in minecraft:" + station.poolPath + ".");
+            System.out.println("[Narcotix] Pool minecraft:" + station.poolPath + " already contains " + station.stationId + ".");
             return true;
         }
 
@@ -89,26 +89,21 @@ public final class NarcotixVillageStructures {
         added = addToBackingLists(pool, weightedElement, element, WEIGHT) || added;
 
         if (added) {
-            System.out.println("[Narcotix] Injected center " + station.stationId + " into minecraft:" + station.poolPath + " with weight " + WEIGHT + ".");
+            System.out.println("[Narcotix] Injected " + station.stationId + " into minecraft:" + station.poolPath + " with weight " + WEIGHT + ".");
             return true;
         }
 
-        System.out.println("[Narcotix] Failed to mutate minecraft:" + station.poolPath + ". Center cop station was not injected.");
+        System.out.println("[Narcotix] Failed to mutate minecraft:" + station.poolPath + ". Cop station was not injected.");
         return false;
     }
 
     private static StructureTemplatePool getPool(Registry<StructureTemplatePool> registry, ResourceKey<StructureTemplatePool> key) {
         try {
             return registry.get(key).map(reference -> reference.value()).orElse(null);
-        } catch (Throwable ignored) {
+        } catch (Throwable throwable) {
+            System.out.println("[Narcotix] Failed to look up template pool " + key + ": " + throwable);
+            return null;
         }
-
-        try {
-            return registry.getOrThrow(key).value();
-        } catch (Throwable ignored) {
-        }
-
-        return null;
     }
 
     private static boolean alreadyContains(StructureTemplatePool pool, String stationId) {
@@ -120,7 +115,6 @@ public final class NarcotixVillageStructures {
             }
         } catch (Throwable ignored) {
         }
-
         return false;
     }
 
@@ -131,18 +125,14 @@ public final class NarcotixVillageStructures {
 
         while (current != null) {
             for (Field field : current.getDeclaredFields()) {
-                if (!List.class.isAssignableFrom(field.getType())) {
-                    continue;
-                }
-
                 try {
                     field.setAccessible(true);
                     Object value = field.get(pool);
-                    if (!(value instanceof List)) {
+
+                    if (!(value instanceof List list)) {
                         continue;
                     }
 
-                    List list = (List) value;
                     if (list.isEmpty()) {
                         continue;
                     }
@@ -170,10 +160,10 @@ public final class NarcotixVillageStructures {
     }
 
     private static final class VillageStation {
-        private final String poolPath;
-        private final String stationId;
+        final String poolPath;
+        final String stationId;
 
-        private VillageStation(String poolPath, String stationId) {
+        VillageStation(String poolPath, String stationId) {
             this.poolPath = poolPath;
             this.stationId = stationId;
         }

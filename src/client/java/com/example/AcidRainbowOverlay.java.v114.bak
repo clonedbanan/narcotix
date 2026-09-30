@@ -1,0 +1,257 @@
+package com.example;
+
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudElementRegistry;
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.effect.MobEffects;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
+public final class AcidRainbowOverlay {
+    private static int activeTicks = 0;
+    private static boolean registered = false;
+    private static boolean drawLogged = false;
+    private static Object cachedRenderPipeline = null;
+
+    private AcidRainbowOverlay() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (isAcidActive(client)) {
+                activeTicks = 4;
+            } else {
+                activeTicks = 0;
+                drawLogged = false;
+            }
+        });
+
+        Identifier id = Identifier.fromNamespaceAndPath(NarcotixMod.MOD_ID, "acid_rainbow_overlay");
+        HudElementRegistry.addLast(id, (guiGraphics, tickCounter) -> render(guiGraphics));
+        System.out.println("[Narcotix] Registered Acid rainbow overlay v113. Overlay only draws while Acid/Nausea is active.");
+    }
+
+    private static boolean isAcidActive(Minecraft client) {
+        if (client == null || client.player == null) {
+            return false;
+        }
+
+        Object player = client.player;
+
+        Object acidEffect = getStaticFieldValue("com.example.NarcotixEffects", "ACID");
+        if (acidEffect != null && hasEffect(player, acidEffect)) {
+            return true;
+        }
+
+        try {
+            if (hasEffect(player, MobEffects.NAUSEA)) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return activeEffectsTextContains(player, "acid") || activeEffectsTextContains(player, "nausea");
+    }
+
+    private static Object getStaticFieldValue(String className, String fieldName) {
+        try {
+            Class<?> clazz = Class.forName(className);
+            Field field = clazz.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field.get(null);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean hasEffect(Object player, Object effect) {
+        if (player == null || effect == null) {
+            return false;
+        }
+
+        try {
+            Method[] methods = player.getClass().getMethods();
+            for (Method method : methods) {
+                if (!method.getName().equals("hasEffect") || method.getParameterCount() != 1) {
+                    continue;
+                }
+                Class<?> parameterType = method.getParameterTypes()[0];
+                if (!parameterType.isAssignableFrom(effect.getClass())) {
+                    continue;
+                }
+                Object result = method.invoke(player, effect);
+                if (result instanceof Boolean value) {
+                    return value;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return false;
+    }
+
+    private static boolean activeEffectsTextContains(Object player, String needle) {
+        try {
+            Method method = player.getClass().getMethod("getActiveEffects");
+            Object effects = method.invoke(player);
+            if (effects != null) {
+                return effects.toString().toLowerCase().contains(needle.toLowerCase());
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static void render(Object guiGraphics) {
+        if (activeTicks <= 0 || guiGraphics == null) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null || !isAcidActive(minecraft)) {
+            activeTicks = 0;
+            return;
+        }
+
+        if (!drawLogged) {
+            drawLogged = true;
+            System.out.println("[Narcotix] Acid rainbow overlay drawing while Acid/Nausea is active.");
+        }
+
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        long time = System.currentTimeMillis();
+
+        // Lower opacity than v112. Main wash is about 9-12% alpha, bands are about 7% alpha.
+        int baseColor = hsvToArgb((time % 7000L) / 7000.0F, 0.75F, 1.0F, 0x1C);
+        fill(guiGraphics, 0, 0, width, height, baseColor);
+
+        int bandHeight = Math.max(10, height / 12);
+        int offset = (int) ((time / 35L) % Math.max(1, bandHeight * 2));
+        for (int y = -bandHeight * 2; y < height + bandHeight * 2; y += bandHeight) {
+            float hue = ((y + offset) / (float) Math.max(1, height) + (time % 9000L) / 9000.0F) % 1.0F;
+            int color = hsvToArgb(hue, 0.80F, 1.0F, 0x14);
+            fill(guiGraphics, 0, y + offset, width, y + offset + Math.max(3, bandHeight / 2), color);
+        }
+
+        // Slight edge glow, dimmer than previous versions.
+        int edge = Math.max(12, Math.min(width, height) / 18);
+        fill(guiGraphics, 0, 0, width, edge, hsvToArgb(0.00F, 0.70F, 1.0F, 0x12));
+        fill(guiGraphics, 0, height - edge, width, height, hsvToArgb(0.62F, 0.70F, 1.0F, 0x12));
+        fill(guiGraphics, 0, 0, edge, height, hsvToArgb(0.33F, 0.70F, 1.0F, 0x10));
+        fill(guiGraphics, width - edge, 0, width, height, hsvToArgb(0.83F, 0.70F, 1.0F, 0x10));
+    }
+
+    private static int hsvToArgb(float hue, float saturation, float value, int alpha) {
+        hue = hue - (float) Math.floor(hue);
+        int i = (int) Math.floor(hue * 6.0F);
+        float f = hue * 6.0F - i;
+        float p = value * (1.0F - saturation);
+        float q = value * (1.0F - f * saturation);
+        float t = value * (1.0F - (1.0F - f) * saturation);
+
+        float r;
+        float g;
+        float b;
+        switch (i % 6) {
+            case 0 -> { r = value; g = t; b = p; }
+            case 1 -> { r = q; g = value; b = p; }
+            case 2 -> { r = p; g = value; b = t; }
+            case 3 -> { r = p; g = q; b = value; }
+            case 4 -> { r = t; g = p; b = value; }
+            default -> { r = value; g = p; b = q; }
+        }
+
+        int ri = Math.max(0, Math.min(255, (int) (r * 255.0F)));
+        int gi = Math.max(0, Math.min(255, (int) (g * 255.0F)));
+        int bi = Math.max(0, Math.min(255, (int) (b * 255.0F)));
+        int ai = Math.max(0, Math.min(255, alpha));
+        return (ai << 24) | (ri << 16) | (gi << 8) | bi;
+    }
+
+    private static void fill(Object guiGraphics, int x1, int y1, int x2, int y2, int color) {
+        if (tryFillFive(guiGraphics, x1, y1, x2, y2, color)) {
+            return;
+        }
+        tryFillWithPipeline(guiGraphics, x1, y1, x2, y2, color);
+    }
+
+    private static boolean tryFillFive(Object guiGraphics, int x1, int y1, int x2, int y2, int color) {
+        try {
+            Method method = guiGraphics.getClass().getMethod("fill", int.class, int.class, int.class, int.class, int.class);
+            method.invoke(guiGraphics, x1, y1, x2, y2, color);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean tryFillWithPipeline(Object guiGraphics, int x1, int y1, int x2, int y2, int color) {
+        try {
+            Method[] methods = guiGraphics.getClass().getMethods();
+            for (Method method : methods) {
+                if (!method.getName().equals("fill") || method.getParameterCount() != 6) {
+                    continue;
+                }
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                if (parameterTypes[1] != int.class || parameterTypes[2] != int.class || parameterTypes[3] != int.class || parameterTypes[4] != int.class || parameterTypes[5] != int.class) {
+                    continue;
+                }
+                Object pipeline = getRenderPipeline(parameterTypes[0]);
+                if (pipeline == null) {
+                    continue;
+                }
+                method.invoke(guiGraphics, pipeline, x1, y1, x2, y2, color);
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static Object getRenderPipeline(Class<?> pipelineClass) {
+        if (cachedRenderPipeline != null && pipelineClass.isAssignableFrom(cachedRenderPipeline.getClass())) {
+            return cachedRenderPipeline;
+        }
+
+        String[] classNames = {
+                "net.minecraft.client.renderer.RenderPipelines",
+                "net.minecraft.client.render.RenderPipelines",
+                "com.mojang.blaze3d.pipeline.RenderPipelines"
+        };
+
+        String[] preferredNames = {"GUI", "GUI_OVERLAY", "GUI_TEXTURED", "GUI_TEXT_BACKGROUND"};
+
+        for (String className : classNames) {
+            try {
+                Class<?> clazz = Class.forName(className);
+                for (String fieldName : preferredNames) {
+                    try {
+                        Field field = clazz.getField(fieldName);
+                        if (Modifier.isStatic(field.getModifiers()) && pipelineClass.isAssignableFrom(field.getType())) {
+                            cachedRenderPipeline = field.get(null);
+                            return cachedRenderPipeline;
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+                for (Field field : clazz.getFields()) {
+                    if (Modifier.isStatic(field.getModifiers()) && pipelineClass.isAssignableFrom(field.getType())) {
+                        cachedRenderPipeline = field.get(null);
+                        return cachedRenderPipeline;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+}

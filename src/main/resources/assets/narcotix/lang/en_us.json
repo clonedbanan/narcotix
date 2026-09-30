@@ -28,5 +28,11 @@
     "effect.narcotix.coke_high":  "Cocaine",
     "effect.narcotix.coke_rush":  "Cocaine",
     "effect.narcotix.cocaine":  "Cocaine",
-    "effect.narcotix.tobacco":  "Tobacco"
+    "effect.narcotix.tobacco":  "Tobacco",
+    "block.narcotix.lsd_cluster":  "Acid Crystals",
+    "item.narcotix.lsd_cluster":  "Acid Crystals",
+    "item.narcotix.bottle_of_pure_acid": "Bottle of Pure LSD",
+    "item.narcotix.acid":  "Acid",
+    "item.narcotix.lsd_shard": "LSD Shard",
+  "effect.narcotix.acid": "Acid"
 }

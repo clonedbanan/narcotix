@@ -4,6 +4,7 @@ package com.example;
 
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.ComposterBlock;
 import java.util.function.Function;
 
 import net.fabricmc.api.ModInitializer;
@@ -17,7 +18,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
-
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -28,7 +29,8 @@ import org.slf4j.LoggerFactory;
 public class NarcotixMod implements ModInitializer {
     public static final String MOD_ID = "narcotix";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-
+
+
     public static final SoundEvent LOOSE_COKE_SNIFF_SOUND = registerSoundEvent("item.loose_coke_sniff");
     public static final SoundEvent COCAINE_HEARTBEAT_SOUND = registerSoundEvent("item.cocaine_heartbeat");
 
@@ -131,17 +133,42 @@ public class NarcotixMod implements ModInitializer {
         )
 );
 
+    public static final Block LSD_CLUSTER = registerBlock(
+            "lsd_cluster",
+            properties -> new AcidCrystalBlock(properties
+                    .noOcclusion()
+                    .strength(1.5F)
+                    .sound(SoundType.AMETHYST_CLUSTER)
+            )
+    );
     public static final Item JOINT = registerItem("joint", properties -> new JointItem(properties));
     public static final Item BLUNT = registerItem("blunt", properties -> new JointItem(properties));
     public static final Item CIGARETTE = registerItem("cigarette", properties -> new JointItem(properties));
 
+
+
+    public static final Item LSD_SHARD = registerItem("lsd_shard", Item::new);
+
+        public static final Item BOTTLE_OF_PURE_ACID = registerItem(
+            "bottle_of_pure_acid",
+            properties -> new Item(properties.stacksTo(16).craftRemainder(Items.GLASS_BOTTLE))
+    );
+public static final Item ACID = registerItem("acid", properties -> new AcidItem(properties));
     @Override
     public void onInitialize() {
-        NarcotixEffects.register();
+        NarcotixAcidAdditions.register();
+        NarcotixAcidBrewingStandHandler.register();
+        NarcotixAcidCrystalSpawner.register();
+        
+        registerCompostables();
+NarcotixEffects.register();
+        NarcotixBrewingRecipes.register();
+        NarcotixAcidCrystalGenerator.register();
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.NATURAL_BLOCKS).register(entries -> {
             entries.accept(WEED_SEEDS);
             entries.accept(COCAINE_SEEDS);
             entries.accept(TOBACCO_SEEDS);
+            entries.accept(LSD_CLUSTER);
         });
 
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.INGREDIENTS).register(entries -> {
@@ -155,6 +182,9 @@ public class NarcotixMod implements ModInitializer {
             entries.accept(TOBACCO_LEAF_DRY);
             entries.accept(LOOSE_COKE);
             entries.accept(COKE_BRICK);
+            entries.accept(LSD_SHARD);
+            entries.accept(BOTTLE_OF_PURE_ACID);
+            entries.accept(ACID);
         });
 
         NarcotixVillageLoot.register();
@@ -213,6 +243,11 @@ LOGGER.info("Narcotix loaded.");
 
         return block;
     }
+    private static void registerCompostables() {
+        ComposterBlock.COMPOSTABLES.put(WEED_SEEDS, 0.3F);
+        ComposterBlock.COMPOSTABLES.put(COCAINE_SEEDS, 0.3F);
+        ComposterBlock.COMPOSTABLES.put(TOBACCO_SEEDS, 0.3F);
+    }
     private static SoundEvent registerSoundEvent(String name) {
         Identifier id = Identifier.fromNamespaceAndPath(MOD_ID, name);
         return Registry.register(BuiltInRegistries.SOUND_EVENT, id, SoundEvent.createVariableRangeEvent(id));
@@ -230,5 +265,4 @@ LOGGER.info("Narcotix loaded.");
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
 }
-
 

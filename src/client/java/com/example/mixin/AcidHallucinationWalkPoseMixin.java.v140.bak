@@ -1,0 +1,71 @@
+package com.example.mixin;
+
+import com.example.AcidHallucinationManager;
+import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(HumanoidModel.class)
+public class AcidHallucinationWalkPoseMixin {
+    @Shadow @Final public ModelPart rightLeg;
+    @Shadow @Final public ModelPart leftLeg;
+    @Shadow @Final public ModelPart rightArm;
+    @Shadow @Final public ModelPart leftArm;
+
+    @Inject(
+            method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V",
+            at = @At("TAIL")
+    )
+    private void narcotix$acidHallucinationWalkPose(HumanoidRenderState state, CallbackInfo ci) {
+        if (!(state instanceof AvatarRenderState)) {
+            return;
+        }
+
+        if (!AcidHallucinationManager.hasActiveHallucinations()) {
+            return;
+        }
+
+        /*
+         * Render-only hallucination walk cycle.
+         * Fake RemotePlayer hallucinations do not receive the same networked walk
+         * animation state real players do, so this manually varies the leg swing.
+         * The intensity drifts between slow walk and short jog/run bursts so they
+         * no longer all look like identical sliding mannequins.
+         */
+        float time = (System.currentTimeMillis() % 100000L) / 1000.0F;
+        float phase = (System.identityHashCode(state) & 1023) * 0.017453292F;
+
+        float drift = 0.5F + 0.5F * (float)Math.sin(time * 0.55F + phase * 1.7F);
+        float burstWave = Math.max(0.0F, (float)Math.sin(time * 0.22F + phase * 2.3F));
+        float burst = burstWave * burstWave * burstWave * burstWave;
+
+        float intensity = 0.28F + drift * 0.38F + burst * 0.34F;
+        if (intensity > 1.0F) intensity = 1.0F;
+        if (intensity < 0.18F) intensity = 0.18F;
+
+        float frequency = 3.8F + intensity * 5.4F;
+        float stride = 0.38F + intensity * 0.55F;
+        float swing = (float)Math.sin(time * frequency + phase) * stride;
+        float secondary = (float)Math.sin(time * frequency * 0.5F + phase) * 0.06F * intensity;
+        float armSwing = swing * (0.32F + intensity * 0.18F);
+
+        this.rightLeg.xRot = swing;
+        this.leftLeg.xRot = -swing;
+        this.rightLeg.yRot = secondary;
+        this.leftLeg.yRot = -secondary;
+        this.rightLeg.zRot = 0.0F;
+        this.leftLeg.zRot = 0.0F;
+
+        if (!state.isUsingItem) {
+            this.rightArm.xRot += -armSwing;
+            this.leftArm.xRot += armSwing;
+        }
+    }
+}

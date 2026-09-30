@@ -1,0 +1,134 @@
+package com.example;
+
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.AmethystClusterBlock;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+
+public final class NarcotixAcidCrystalSpawner {
+    private static boolean registered = false;
+    private static int ticks = 0;
+
+    private static final int CHECK_EVERY_TICKS = 80;
+    private static final int ATTEMPTS_PER_PLAYER = 28;
+    private static final int HORIZONTAL_RADIUS = 64;
+    private static final int MAX_NEARBY_CLUSTERS = 18;
+    private static final int NEARBY_CLUSTER_RADIUS = 72;
+
+    private NarcotixAcidCrystalSpawner() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        ServerTickEvents.END_SERVER_TICK.register(NarcotixAcidCrystalSpawner::tickServer);
+    }
+
+    private static void tickServer(MinecraftServer server) {
+        ticks++;
+        if (ticks < CHECK_EVERY_TICKS) {
+            return;
+        }
+        ticks = 0;
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerLevel level = player.level();
+            if (level.dimension() != Level.OVERWORLD) {
+                continue;
+            }
+
+            if (countNearbyClusters(level, player.blockPosition()) >= MAX_NEARBY_CLUSTERS) {
+                continue;
+            }
+
+            tryPlaceNearPlayer(level, player);
+        }
+    }
+
+    private static void tryPlaceNearPlayer(ServerLevel level, ServerPlayer player) {
+        RandomSource random = level.getRandom();
+        int minY = Math.max(level.getMinY() + 8, -62);
+        int maxY = Math.min(8, level.getMaxY() - 8);
+
+        if (maxY <= minY) {
+            return;
+        }
+
+        BlockPos playerPos = player.blockPosition();
+
+        for (int attempt = 0; attempt < ATTEMPTS_PER_PLAYER; attempt++) {
+            int x = playerPos.getX() + random.nextInt(HORIZONTAL_RADIUS * 2 + 1) - HORIZONTAL_RADIUS;
+            int y = minY + random.nextInt(maxY - minY + 1);
+            int z = playerPos.getZ() + random.nextInt(HORIZONTAL_RADIUS * 2 + 1) - HORIZONTAL_RADIUS;
+            BlockPos pos = new BlockPos(x, y, z);
+
+            if (!level.getBlockState(pos).isAir()) {
+                continue;
+            }
+
+            if (level.canSeeSky(pos)) {
+                continue;
+            }
+
+            Direction direction = Direction.values()[random.nextInt(Direction.values().length)];
+            BlockPos supportPos = pos.relative(direction.getOpposite());
+            BlockState support = level.getBlockState(supportPos);
+
+            if (!isDeepslateCaveSupport(support)) {
+                continue;
+            }
+
+            BlockState cluster = NarcotixMod.LSD_CLUSTER.defaultBlockState()
+                    .setValue(AmethystClusterBlock.FACING, direction);
+
+            if (!cluster.canSurvive(level, pos)) {
+                continue;
+            }
+
+            level.setBlock(pos, cluster, 3);
+            return;
+        }
+    }
+
+    private static int countNearbyClusters(ServerLevel level, BlockPos center) {
+        int count = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(
+                center.offset(-NEARBY_CLUSTER_RADIUS, -48, -NEARBY_CLUSTER_RADIUS),
+                center.offset(NEARBY_CLUSTER_RADIUS, 24, NEARBY_CLUSTER_RADIUS))) {
+            if (level.getBlockState(pos).is(NarcotixMod.LSD_CLUSTER)) {
+                count++;
+                if (count >= MAX_NEARBY_CLUSTERS) {
+                    return count;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static boolean isDeepslateCaveSupport(BlockState state) {
+        return state.is(Blocks.DEEPSLATE)
+                || state.is(Blocks.COBBLED_DEEPSLATE)
+                || state.is(Blocks.POLISHED_DEEPSLATE)
+                || state.is(Blocks.DEEPSLATE_BRICKS)
+                || state.is(Blocks.DEEPSLATE_TILES)
+                || state.is(Blocks.TUFF)
+                || state.is(Blocks.CALCITE)
+                || state.is(Blocks.DEEPSLATE_COAL_ORE)
+                || state.is(Blocks.DEEPSLATE_IRON_ORE)
+                || state.is(Blocks.DEEPSLATE_COPPER_ORE)
+                || state.is(Blocks.DEEPSLATE_GOLD_ORE)
+                || state.is(Blocks.DEEPSLATE_REDSTONE_ORE)
+                || state.is(Blocks.DEEPSLATE_EMERALD_ORE)
+                || state.is(Blocks.DEEPSLATE_LAPIS_ORE)
+                || state.is(Blocks.DEEPSLATE_DIAMOND_ORE);
+    }
+}

@@ -11,6 +11,10 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import java.lang.reflect.Field;
+import java.util.Locale;
 
 public final class NarcotixVillagePresenceSpawner {
     private static boolean registered = false;
@@ -68,7 +72,7 @@ public final class NarcotixVillagePresenceSpawner {
                     player.getBoundingBox().inflate(NEAR_PLAYER_RADIUS)
             ).size();
 
-            if (nearbyCops < MAX_COPS_NEAR_PLAYER_IN_VILLAGE) {
+            if (nearbyCops < getCopLimitForPoliceStations(countNearbyPoliceStations(level, player.blockPosition()))) {
                 trySpawnCopNearPlayer(level, player);
             }
 
@@ -178,5 +182,61 @@ public final class NarcotixVillagePresenceSpawner {
                 Villager.class,
                 new AABB(pos).inflate(48.0D)
         ).isEmpty();
+    }
+
+    private static int getCopLimitForPoliceStations(int stationCount) {
+        int limit = MAX_COPS_NEAR_PLAYER_IN_VILLAGE;
+
+        for (int i = 0; i < stationCount; i++) {
+            // Safety cap: still exponential, but prevents accidental hundreds of cops if many station chests are loaded.
+            if (limit >= 80) {
+                return 80;
+            }
+            limit *= 2;
+        }
+
+        return limit;
+    }
+
+    private static int countNearbyPoliceStations(ServerLevel level, BlockPos center) {
+        int count = 0;
+        int radius = 96;
+
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -24, -radius), center.offset(radius, 24, radius))) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+
+            if (blockEntity instanceof ChestBlockEntity && isPoliceStationLootChest(blockEntity)) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static boolean isPoliceStationLootChest(BlockEntity blockEntity) {
+        Class<?> current = blockEntity.getClass();
+
+        while (current != null) {
+            Field[] fields = current.getDeclaredFields();
+
+            for (Field field : fields) {
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(blockEntity);
+
+                    if (value != null) {
+                        String text = value.toString();
+                        if (text.contains("narcotix") && text.contains("cop_station")) {
+                            return true;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+
+            current = current.getSuperclass();
+        }
+
+        return false;
     }
 }

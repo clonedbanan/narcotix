@@ -1,0 +1,345 @@
+package com.example;
+
+import com.mojang.authlib.GameProfile;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+
+public final class AcidHallucinationManager {
+    private static final List<Hallucination> HALLUCINATIONS = new ArrayList<>();
+    private static final Random RANDOM = new Random();
+    private static boolean registered = false;
+    private static boolean wasActive = false;
+    private static int nextEntityId = -610000;
+    private static int tick = 0;
+
+    private AcidHallucinationManager() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        ClientTickEvents.END_CLIENT_TICK.register(client -> clientTick());
+        System.out.println("[Narcotix] Registered Acid hallucination manager v121 animation fix.");
+    }
+
+    private static void clientTick() {
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
+        ClientLevel level = client.level;
+        tick++;
+
+        if (player == null || level == null) {
+            clearAll();
+            wasActive = false;
+            return;
+        }
+
+        boolean active = hasAcidVisualEffect(player);
+        if (!active) {
+            if (wasActive || !HALLUCINATIONS.isEmpty()) {
+                clearAll();
+                System.out.println("[Narcotix] Acid hallucinations cleared.");
+            }
+            wasActive = false;
+            return;
+        }
+
+        if (!wasActive) {
+            System.out.println("[Narcotix] Acid hallucinations active; spawning animated fake people.");
+            clearAll();
+            spawnInitial(level, player);
+        }
+        wasActive = true;
+
+        while (HALLUCINATIONS.size() < 6 && RANDOM.nextInt(50) == 0) {
+            spawnOne(level, player, HALLUCINATIONS.size());
+        }
+
+        Iterator<Hallucination> iterator = HALLUCINATIONS.iterator();
+        while (iterator.hasNext()) {
+            Hallucination h = iterator.next();
+            if (h.fake.isRemoved() || h.life-- <= 0) {
+                safeRemove(h.fake);
+                iterator.remove();
+                continue;
+            }
+            updateHallucination(level, player, h);
+        }
+    }
+
+    private static boolean hasAcidVisualEffect(LocalPlayer player) {
+        if (player.hasEffect(MobEffects.NAUSEA)) {
+            return true;
+        }
+        try {
+            return player.hasEffect(NarcotixEffects.ACID);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void spawnInitial(ClientLevel level, LocalPlayer player) {
+        for (int i = 0; i < 6; i++) {
+            spawnOne(level, player, i);
+        }
+    }
+
+    private static void spawnOne(ClientLevel level, LocalPlayer player, int slot) {
+        try {
+            GameProfile profile = new GameProfile(UUID.randomUUID(), randomName(slot));
+            RemotePlayer fake = new RemotePlayer(level, profile);
+            fake.setId(nextEntityId--);
+            fake.setNoGravity(true);
+            fake.setInvisible(false);
+            fake.setSilent(true);
+
+            if (NarcotixMod.CIGARETTE != null) {
+        // v125: cigarette is rendered at the mouth by MouthJointRenderLayer.
+            }
+
+            Hallucination h = new Hallucination(fake, 20 * (16 + RANDOM.nextInt(16)), slot);
+            placeHallucination(player, h, true);
+            h.lastX = fake.getX();
+            h.lastY = fake.getY();
+            h.lastZ = fake.getZ();
+            level.addEntity(fake);
+            HALLUCINATIONS.add(h);
+            System.out.println("[Narcotix] Spawned animated acid hallucination at " + fake.getX() + ", " + fake.getY() + ", " + fake.getZ());
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn acid hallucination: " + t);
+        }
+    }
+
+    private static String randomName(int slot) {
+        String[] names = new String[] { "Steve", "Alex", "Herobrine", "Stranger", "Smoke", "Ghost" };
+        return names[Math.abs(slot) % names.length] + RANDOM.nextInt(1000);
+    }
+
+    private static void updateHallucination(ClientLevel level, LocalPlayer player, Hallucination h) {
+        double oldX = h.fake.getX();
+        double oldY = h.fake.getY();
+        double oldZ = h.fake.getZ();
+
+        placeHallucination(player, h, false);
+        facePlayer(player, h.fake);
+
+        double dx = h.fake.getX() - oldX;
+        double dz = h.fake.getZ() - oldZ;
+        double speed = Math.sqrt(dx * dx + dz * dz);
+
+        // Give the renderer real movement state instead of only teleporting the body.
+        h.fake.setDeltaMovement(dx, 0.0D, dz);
+        tryUpdateWalkAnimation(h.fake, speed);
+        h.fake.setOnGround(true);
+        // Force common limb-swing fields by reflection when mappings expose them under slightly different names.
+        setFloatIfPresent(h.fake, "animationSpeed", Math.min(1.0F, (float)(speed * 9.0D)));
+        setFloatIfPresent(h.fake, "animationSpeedOld", Math.min(1.0F, (float)(speed * 7.5D)));
+        setFloatIfPresent(h.fake, "animationPosition", tick * 0.45F + h.phase * 0.01F);
+        setFloatIfPresent(h.fake, "oAnimationPosition", (tick - 1) * 0.45F + h.phase * 0.01F);
+
+        // Keep their cigarette hand raised and add occasional swing pulses.
+        try {
+        // v125: no vanilla use-item pose; mouth-smoking layer handles hallucination smoking.
+        } catch (Throwable ignored) {
+        }
+        if (tick % 24 == h.slot % 24) {
+            try {
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // Let the client player entity update its internal animation timers after we feed it movement/use state.
+        try {
+            h.fake.tick();
+        } catch (Throwable ignored) {
+        }
+
+        h.lastX = h.fake.getX();
+        h.lastY = h.fake.getY();
+        h.lastZ = h.fake.getZ();
+
+        if (tick % 4 == 0) {
+            double px = h.fake.getX();
+            double py = h.fake.getY() + 1.55D;
+            double pz = h.fake.getZ();
+            Vec3 look = h.fake.getLookAngle();
+            level.addParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                    px + look.x * 0.35D,
+                    py,
+                    pz + look.z * 0.35D,
+                    0.0D,
+                    0.018D,
+                    0.0D);
+        }
+    }
+
+    private static void placeHallucination(LocalPlayer player, Hallucination h, boolean firstPlace) {
+        float baseYaw = player.getYRot();
+        double angleDeg = baseYaw + h.angleOffset + Math.sin((tick + h.phase) * 0.025D) * 20.0D;
+        double angle = Math.toRadians(angleDeg);
+
+        double radius = h.radius + Math.sin((tick + h.phase) * 0.035D) * 0.75D;
+        double walk = Math.sin((tick + h.phase) * 0.05D) * 0.65D;
+
+        double x = player.getX() - Math.sin(angle) * radius + Math.cos(angle) * walk;
+        double z = player.getZ() + Math.cos(angle) * radius + Math.sin(angle) * walk;
+        double y = player.getY();
+
+        h.fake.setPos(x, y, z);
+        h.fake.setOnGround(true);
+        if (firstPlace) {
+            facePlayer(player, h.fake);
+        }
+    }
+
+    private static void facePlayer(LocalPlayer player, RemotePlayer fake) {
+        double dx = player.getX() - fake.getX();
+        double dz = player.getZ() - fake.getZ();
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+        fake.setYRot(yaw);
+        fake.setYHeadRot(yaw);
+        fake.setYBodyRot(yaw);
+        fake.setXRot(0.0F);
+    }
+
+    private static void setFloatIfPresent(Object target, String fieldName, float value) {
+        try {
+            Field field = findField(target.getClass(), fieldName);
+            if (field != null) {
+                field.setAccessible(true);
+                field.setFloat(target, value);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static Field findField(Class<?> type, String fieldName) {
+        Class<?> current = type;
+        while (current != null) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static void clearAll() {
+        for (Hallucination h : HALLUCINATIONS) {
+            safeRemove(h.fake);
+        }
+        HALLUCINATIONS.clear();
+    }
+
+    private static void safeRemove(Entity entity) {
+        try {
+            entity.discard();
+        } catch (Throwable ignored) {
+            try {
+                entity.remove(Entity.RemovalReason.DISCARDED);
+            } catch (Throwable ignoredAgain) {
+            }
+        }
+    }
+
+    private static final class Hallucination {
+        final RemotePlayer fake;
+        int life;
+        final double radius;
+        final double angleOffset;
+        final int phase;
+        final int slot;
+        double lastX;
+        double lastY;
+        double lastZ;
+
+        Hallucination(RemotePlayer fake, int life, int slot) {
+            this.fake = fake;
+            this.life = life;
+            this.slot = slot;
+            this.radius = 4.0D + RANDOM.nextDouble() * 3.0D;
+            this.angleOffset = -55.0D + slot * 22.0D + RANDOM.nextDouble() * 18.0D;
+            this.phase = RANDOM.nextInt(10000);
+        }
+    }
+    private static void tryUpdateWalkAnimation(Object entity, double speed) {
+        // Mapping-safe best-effort limb animation update. Some MC versions expose
+        // walkDist/walkDistO directly, others hide/rename them, so reflection keeps this compiling.
+        try {
+            Class<?> c = entity.getClass();
+            while (c != null) {
+                try {
+                    java.lang.reflect.Field walkDist = c.getDeclaredField("walkDist");
+                    java.lang.reflect.Field walkDistO = c.getDeclaredField("walkDistO");
+                    walkDist.setAccessible(true);
+                    walkDistO.setAccessible(true);
+                    float next = walkDist.getFloat(entity) + (float)(speed * 1.8D);
+                    walkDistO.setFloat(entity, next - (float)(speed * 1.8D));
+                    walkDist.setFloat(entity, next);
+                    return;
+                } catch (NoSuchFieldException ignored) {
+                    c = c.getSuperclass();
+                }
+            }
+        } catch (Throwable ignored) {
+            // If this version renamed the fields, movement still works; it just may not swing limbs.
+        }
+    }
+
+    public static boolean isAcidHallucinationPlayer(Object entity) {
+        if (entity == null) return false;
+        try {
+            Object nameObj = entity.getClass().getMethod("getName").invoke(entity);
+            if (nameObj != null) {
+                String shown = String.valueOf(nameObj);
+                if (shown.contains("AcidHallucination") || shown.contains("Acid Vision") || shown.contains("Hallucination")) return true;
+                try {
+                    Object s = nameObj.getClass().getMethod("getString").invoke(nameObj);
+                    if (s != null) {
+                        String str = String.valueOf(s);
+                        if (str.contains("AcidHallucination") || str.contains("Acid Vision") || str.contains("Hallucination")) return true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Object profile = entity.getClass().getMethod("getGameProfile").invoke(entity);
+            if (profile != null) {
+                Object n = profile.getClass().getMethod("getName").invoke(profile);
+                String str = String.valueOf(n);
+                return str.contains("AcidHallucination") || str.contains("Acid Vision") || str.contains("Hallucination");
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static boolean isHallucinationPlayer(Object entity) {
+        if (entity == null) {
+            return false;
+        }
+        for (Hallucination hallucination : HALLUCINATIONS) {
+            if (hallucination.fake == entity) {
+                return true;
+            }
+        }
+        return false;
+    }}

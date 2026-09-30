@@ -112,10 +112,16 @@ if (this.inspectingContainerPos != null) {
         }
     }
 
-    private void continueInspectingContainer(ServerLevel level) {
+        private void continueInspectingContainer(ServerLevel level) {
         BlockPos pos = this.inspectingContainerPos;
+        BlockEntity blockEntity = pos == null ? null : level.getBlockEntity(pos);
 
-        if (pos == null || !(level.getBlockEntity(pos) instanceof Container container) || !hasContraband(container)) {
+        if (!isInspectablePoliceContainer(blockEntity) || !(blockEntity instanceof Container container) || !hasContraband(container)) {
+            closeContainerAnimation(level, pos);
+            stopInspectingContainer();
+            return;
+        }
+        if (false) {
             closeContainerAnimation(level, pos);
             stopInspectingContainer();
             return;
@@ -215,6 +221,9 @@ if (this.inspectingContainerPos != null) {
         level.blockEvent(pos, state.getBlock(), 1, open ? 1 : 0);
     }
 
+    private static boolean isInspectablePoliceContainer(BlockEntity blockEntity) {
+        return blockEntity instanceof ChestBlockEntity;
+    }
     private static boolean hasContraband(Container container) {
         for (int i = 0; i < container.getContainerSize(); i++) {
             if (isContraband(container.getItem(i))) {

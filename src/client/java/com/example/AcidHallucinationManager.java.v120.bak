@@ -1,0 +1,298 @@
+package com.example;
+
+import com.mojang.authlib.GameProfile;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+
+public final class AcidHallucinationManager {
+    private static final Random RANDOM = new Random();
+    private static final List<Hallucination> HALLUCINATIONS = new ArrayList<>();
+    private static boolean registered = false;
+    private static boolean wasActive = false;
+    private static int spawnCooldown = 0;
+    private static int debugCooldown = 0;
+
+    private static final int MAX_HALLUCINATIONS = 7;
+    private static final int MIN_LIFE_TICKS = 20 * 7;
+    private static final int EXTRA_LIFE_TICKS = 20 * 9;
+
+    private AcidHallucinationManager() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        ClientTickEvents.END_CLIENT_TICK.register(AcidHallucinationManager::tick);
+        System.out.println("[Narcotix] Registered Acid hallucination manager v119 walking smokers.");
+    }
+
+    private static void tick(Minecraft client) {
+        if (client == null || client.player == null || client.level == null) {
+            clearAll();
+            return;
+        }
+
+        Player player = client.player;
+        ClientLevel level = client.level;
+        boolean active = hasAcidVisualTrigger(player);
+
+        if (!active) {
+            if (wasActive || !HALLUCINATIONS.isEmpty()) {
+                clearAll();
+                System.out.println("[Narcotix] Acid hallucinations cleared.");
+            }
+            wasActive = false;
+            spawnCooldown = 0;
+            return;
+        }
+
+        if (!wasActive) {
+            System.out.println("[Narcotix] Acid hallucinations active; spawning walking smokers.");
+            spawnCooldown = 0;
+        }
+        wasActive = true;
+
+        updateExisting(player, level);
+
+        if (spawnCooldown > 0) {
+            spawnCooldown--;
+        }
+        if (HALLUCINATIONS.size() < MAX_HALLUCINATIONS && spawnCooldown <= 0) {
+            spawnHallucination(player, level, HALLUCINATIONS.size());
+            spawnCooldown = 10 + RANDOM.nextInt(20);
+        }
+
+        if (debugCooldown-- <= 0) {
+            debugCooldown = 20 * 5;
+            System.out.println("[Narcotix] Acid hallucinations visible: " + HALLUCINATIONS.size());
+        }
+    }
+
+    private static boolean hasAcidVisualTrigger(Player player) {
+        try {
+            return player.hasEffect(MobEffects.NAUSEA);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void spawnHallucination(Player player, ClientLevel level, int slot) {
+        try {
+            GameProfile profile = new GameProfile(UUID.randomUUID(), (slot % 2 == 0) ? "Steve" : "Alex");
+            RemotePlayer fake = new RemotePlayer(level, profile);
+
+            double baseYaw = Math.toRadians(player.getYRot());
+            double forwardX = -Math.sin(baseYaw);
+            double forwardZ = Math.cos(baseYaw);
+            double sideX = Math.cos(baseYaw);
+            double sideZ = Math.sin(baseYaw);
+
+            double dist = 4.0D + RANDOM.nextDouble() * 5.0D;
+            double side = (RANDOM.nextDouble() - 0.5D) * 8.0D;
+            double centerX = player.getX() + forwardX * dist + sideX * side;
+            double centerZ = player.getZ() + forwardZ * dist + sideZ * side;
+            double centerY = findGroundY(level, centerX, player.getY(), centerZ);
+
+            fake.setPos(centerX, centerY, centerZ);
+            facePlayer(fake, player);
+            giveCigarette(fake);
+            addToLevel(level, fake);
+
+            Hallucination h = new Hallucination(fake, centerX, centerY, centerZ, slot);
+            HALLUCINATIONS.add(h);
+            System.out.println("[Narcotix] Spawned walking smoking acid hallucination at " + centerX + ", " + centerY + ", " + centerZ);
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn acid hallucination: " + t);
+        }
+    }
+
+    private static void updateExisting(Player player, ClientLevel level) {
+        Iterator<Hallucination> iterator = HALLUCINATIONS.iterator();
+        while (iterator.hasNext()) {
+            Hallucination h = iterator.next();
+            h.life--;
+            if (h.life <= 0 || h.fake.isRemoved()) {
+                removeFake(h.fake);
+                iterator.remove();
+                continue;
+            }
+
+            h.walkAngle += h.walkSpeed;
+            h.centerX += Math.cos(h.walkAngle * 0.37D + h.slot) * 0.012D;
+            h.centerZ += Math.sin(h.walkAngle * 0.31D + h.slot) * 0.012D;
+
+            double x = h.centerX + Math.cos(h.walkAngle) * h.walkRadius;
+            double z = h.centerZ + Math.sin(h.walkAngle) * h.walkRadius;
+            double y = findGroundY(level, x, h.centerY + 1.0D, z);
+            h.centerY = y;
+
+            h.fake.setPos(x, y, z);
+            facePlayer(h.fake, player);
+
+            if (h.smokeCooldown-- <= 0) {
+                spawnSmoke(level, h.fake);
+                h.smokeCooldown = 8 + RANDOM.nextInt(12);
+            }
+        }
+    }
+
+    private static double findGroundY(ClientLevel level, double x, double nearY, double z) {
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int blockX = (int)Math.floor(x);
+        int blockZ = (int)Math.floor(z);
+        int startY = (int)Math.floor(nearY + 3.0D);
+        int endY = (int)Math.floor(nearY - 6.0D);
+
+        for (int y = startY; y >= endY; y--) {
+            pos.set(blockX, y, blockZ);
+            BlockState state = level.getBlockState(pos);
+            if (!state.isAir() && state.isSolidRender()) {
+                return y + 1.0D;
+            }
+        }
+        return nearY;
+    }
+
+    private static void facePlayer(RemotePlayer fake, Player player) {
+        double dx = player.getX() - fake.getX();
+        double dz = player.getZ() - fake.getZ();
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+        fake.setYRot(yaw);
+        fake.setXRot(0.0F);
+        fake.yHeadRot = yaw;
+        fake.yBodyRot = yaw;
+    }
+
+    private static void giveCigarette(RemotePlayer fake) {
+        try {
+            fake.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(NarcotixMod.CIGARETTE));
+        } catch (Throwable ignored) {
+            // Particles still make them look like they are smoking even if hand item rendering changes between versions.
+        }
+    }
+
+    private static void spawnSmoke(ClientLevel level, RemotePlayer fake) {
+        double yaw = Math.toRadians(fake.getYRot());
+        double mouthX = fake.getX() - Math.sin(yaw) * 0.34D;
+        double mouthY = fake.getY() + 1.62D;
+        double mouthZ = fake.getZ() + Math.cos(yaw) * 0.34D;
+        double vx = (RANDOM.nextDouble() - 0.5D) * 0.012D;
+        double vy = 0.018D + RANDOM.nextDouble() * 0.012D;
+        double vz = (RANDOM.nextDouble() - 0.5D) * 0.012D;
+
+        level.addParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE, mouthX, mouthY, mouthZ, vx, vy, vz);
+        if (RANDOM.nextInt(3) == 0) {
+            level.addParticle(ParticleTypes.SMOKE, mouthX, mouthY, mouthZ, vx * 0.5D, vy * 0.5D, vz * 0.5D);
+        }
+    }
+
+    private static void addToLevel(ClientLevel level, Entity entity) {
+        try {
+            Method best = null;
+            for (Method m : level.getClass().getMethods()) {
+                if (!m.getName().equals("addEntity")) {
+                    continue;
+                }
+                Class<?>[] params = m.getParameterTypes();
+                if (params.length == 1 && params[0].isAssignableFrom(entity.getClass())) {
+                    best = m;
+                    break;
+                }
+                if (params.length == 1 && Entity.class.isAssignableFrom(params[0])) {
+                    best = m;
+                }
+            }
+            if (best != null) {
+                best.setAccessible(true);
+                best.invoke(level, entity);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Method best = null;
+            for (Method m : level.getClass().getMethods()) {
+                if (!m.getName().equals("putNonPlayerEntity") && !m.getName().equals("addPlayer")) {
+                    continue;
+                }
+                Class<?>[] params = m.getParameterTypes();
+                if (params.length == 2 && params[1].isAssignableFrom(entity.getClass())) {
+                    best = m;
+                    break;
+                }
+            }
+            if (best != null) {
+                best.setAccessible(true);
+                best.invoke(level, entity.getId(), entity);
+            }
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Could not add hallucination to client level: " + t);
+        }
+    }
+
+    private static void clearAll() {
+        for (Hallucination h : HALLUCINATIONS) {
+            removeFake(h.fake);
+        }
+        HALLUCINATIONS.clear();
+    }
+
+    private static void removeFake(Entity entity) {
+        try {
+            Method discard = entity.getClass().getMethod("discard");
+            discard.invoke(entity);
+            return;
+        } catch (Throwable ignored) {
+        }
+        try {
+            entity.remove(Entity.RemovalReason.DISCARDED);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static final class Hallucination {
+        final RemotePlayer fake;
+        final int slot;
+        int life;
+        int smokeCooldown;
+        double centerX;
+        double centerY;
+        double centerZ;
+        double walkAngle;
+        double walkSpeed;
+        double walkRadius;
+
+        Hallucination(RemotePlayer fake, double centerX, double centerY, double centerZ, int slot) {
+            this.fake = fake;
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.centerZ = centerZ;
+            this.slot = slot;
+            this.life = MIN_LIFE_TICKS + RANDOM.nextInt(EXTRA_LIFE_TICKS);
+            this.smokeCooldown = RANDOM.nextInt(10);
+            this.walkAngle = RANDOM.nextDouble() * Math.PI * 2.0D;
+            this.walkSpeed = 0.018D + RANDOM.nextDouble() * 0.018D;
+            this.walkRadius = 0.5D + RANDOM.nextDouble() * 1.5D;
+        }
+    }
+}

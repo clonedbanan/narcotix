@@ -1,0 +1,192 @@
+package com.example;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.effect.MobEffects;
+
+public final class AcidRainbowOverlay {
+    private AcidRainbowOverlay() {
+    }
+
+    public static void register() {
+        try {
+            Class<?> registryClass = Class.forName("net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry");
+            Class<?> elementClass = Class.forName("net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement");
+            Object id = makeIdentifier("acid_rainbow_overlay");
+
+            Object hudElement = Proxy.newProxyInstance(
+                    elementClass.getClassLoader(),
+                    new Class<?>[] { elementClass },
+                    (proxy, method, args) -> {
+                        if (method.getDeclaringClass() == Object.class) {
+                            if ("toString".equals(method.getName())) return "Narcotix Acid Rainbow Overlay";
+                            if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                            if ("equals".equals(method.getName())) return proxy == args[0];
+                        }
+                        if ("render".equals(method.getName()) && args != null && args.length > 0) {
+                            render(args[0]);
+                        }
+                        return null;
+                    });
+
+            Method addLast = null;
+            for (Method method : registryClass.getMethods()) {
+                if (!"addLast".equals(method.getName())) continue;
+                if (!Modifier.isStatic(method.getModifiers())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 2 && params[1].isAssignableFrom(elementClass)) {
+                    addLast = method;
+                    break;
+                }
+            }
+
+            if (addLast != null) {
+                addLast.invoke(null, id, hudElement);
+                System.out.println("[Narcotix] Registered boosted Acid rainbow overlay.");
+            } else {
+                System.out.println("[Narcotix] Acid overlay skipped: HudElementRegistry.addLast was not found.");
+            }
+        } catch (Throwable throwable) {
+            System.out.println("[Narcotix] Acid overlay registration failed: " + throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
+        }
+    }
+
+    private static Object makeIdentifier(String path) throws Exception {
+        try {
+            Class<?> identifier = Class.forName("net.minecraft.util.Identifier");
+            try {
+                return identifier.getMethod("fromNamespaceAndPath", String.class, String.class).invoke(null, NarcotixMod.MOD_ID, path);
+            } catch (NoSuchMethodException ignored) {
+                return identifier.getConstructor(String.class, String.class).newInstance(NarcotixMod.MOD_ID, path);
+            }
+        } catch (ClassNotFoundException ignored) {
+            Class<?> resourceLocation = Class.forName("net.minecraft.resources.ResourceLocation");
+            try {
+                return resourceLocation.getMethod("fromNamespaceAndPath", String.class, String.class).invoke(null, NarcotixMod.MOD_ID, path);
+            } catch (NoSuchMethodException ignoredAgain) {
+                return resourceLocation.getConstructor(String.class, String.class).newInstance(NarcotixMod.MOD_ID, path);
+            }
+        }
+    }
+
+    private static void render(Object drawContext) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) return;
+
+        boolean active = false;
+        try {
+            active = minecraft.player.hasEffect(NarcotixEffects.ACID) || minecraft.player.hasEffect(MobEffects.NAUSEA);
+        } catch (Throwable ignored) {
+            try {
+                active = minecraft.player.hasEffect(MobEffects.NAUSEA);
+            } catch (Throwable ignoredAgain) {
+                active = false;
+            }
+        }
+        if (!active) return;
+
+        int width = getWindowInt(minecraft, "getGuiScaledWidth", "getWidth");
+        int height = getWindowInt(minecraft, "getGuiScaledHeight", "getHeight");
+        if (width <= 0 || height <= 0) return;
+
+        long now = System.currentTimeMillis();
+        float baseHue = (now % 5200L) / 5200.0F;
+
+        // Stronger than v107: a visible wash plus three moving transparent color bands.
+        // Alpha is still low enough to keep gameplay readable.
+        int wash = hsvToArgb(baseHue, 0.95F, 1.0F, 0x56);
+        fill(drawContext, 0, 0, width, height, wash);
+
+        int bandHeight = Math.max(22, height / 6);
+        int travel = height + bandHeight * 3;
+        for (int i = 0; i < 3; i++) {
+            float hue = baseHue + (i * 0.28F);
+            int alpha = 0x52 - (i * 0x08);
+            int color = hsvToArgb(hue, 1.0F, 1.0F, alpha);
+            int offset = (int) (((now / 14L) + (i * travel / 3)) % travel) - bandHeight;
+            fill(drawContext, 0, offset, width, Math.min(height, offset + bandHeight), color);
+        }
+
+        // Soft edge tint makes the effect read even in bright caves.
+        int edge = hsvToArgb(baseHue + 0.5F, 1.0F, 1.0F, 0x3E);
+        int edgeSize = Math.max(8, Math.min(width, height) / 18);
+        fill(drawContext, 0, 0, width, edgeSize, edge);
+        fill(drawContext, 0, height - edgeSize, width, height, edge);
+        fill(drawContext, 0, 0, edgeSize, height, edge);
+        fill(drawContext, width - edgeSize, 0, width, height, edge);
+    }
+
+    private static int getWindowInt(Minecraft minecraft, String primary, String fallback) {
+        try {
+            Object window = minecraft.getWindow();
+            try {
+                return ((Number) window.getClass().getMethod(primary).invoke(window)).intValue();
+            } catch (Throwable ignored) {
+                return ((Number) window.getClass().getMethod(fallback).invoke(window)).intValue();
+            }
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static void fill(Object drawContext, int x1, int y1, int x2, int y2, int argb) {
+        if (y2 <= y1 || x2 <= x1) return;
+        try {
+            Method fill = drawContext.getClass().getMethod("fill", int.class, int.class, int.class, int.class, int.class);
+            fill.invoke(drawContext, x1, y1, x2, y2, argb);
+            return;
+        } catch (Throwable ignored) {
+        }
+
+        // Alternate method search for versions where fill exists but reflection cannot find
+        // the exact public signature above. This keeps the overlay more portable.
+        try {
+            for (Method method : drawContext.getClass().getMethods()) {
+                if (!"fill".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 5
+                        && params[0] == int.class
+                        && params[1] == int.class
+                        && params[2] == int.class
+                        && params[3] == int.class
+                        && params[4] == int.class) {
+                    method.invoke(drawContext, x1, y1, x2, y2, argb);
+                    return;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Some versions changed render context internals. Failing silently keeps the mod playable.
+        }
+    }
+
+    private static int hsvToArgb(float h, float s, float v, int alpha) {
+        h = h - (float) Math.floor(h);
+        float r = 0.0F;
+        float g = 0.0F;
+        float b = 0.0F;
+
+        int i = (int) Math.floor(h * 6.0F);
+        float f = h * 6.0F - i;
+        float p = v * (1.0F - s);
+        float q = v * (1.0F - f * s);
+        float t = v * (1.0F - (1.0F - f) * s);
+
+        switch (i % 6) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            case 5 -> { r = v; g = p; b = q; }
+            default -> { }
+        }
+
+        int ri = Math.max(0, Math.min(255, (int) (r * 255.0F)));
+        int gi = Math.max(0, Math.min(255, (int) (g * 255.0F)));
+        int bi = Math.max(0, Math.min(255, (int) (b * 255.0F)));
+        return ((alpha & 255) << 24) | (ri << 16) | (gi << 8) | bi;
+    }
+}

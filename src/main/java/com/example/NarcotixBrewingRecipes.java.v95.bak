@@ -1,0 +1,69 @@
+package com.example;
+
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.Ingredient;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+
+public final class NarcotixBrewingRecipes {
+    private static boolean registered = false;
+
+    private NarcotixBrewingRecipes() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        if (tryRegisterWithFabricBuilder("net.fabricmc.fabric.api.registry.FabricPotionBrewingBuilder")) {
+            return;
+        }
+
+        tryRegisterWithFabricBuilder("net.fabricmc.fabric.api.registry.FabricBrewingRecipeRegistryBuilder");
+    }
+
+    private static boolean tryRegisterWithFabricBuilder(String builderClassName) {
+        try {
+            Class<?> builderClass = Class.forName(builderClassName);
+            Class<?> callbackClass = Class.forName(builderClassName + "$BuildCallback");
+            Field buildField = builderClass.getField("BUILD");
+            Object event = buildField.get(null);
+
+            Object callback = Proxy.newProxyInstance(
+                    NarcotixBrewingRecipes.class.getClassLoader(),
+                    new Class<?>[] { callbackClass },
+                    (proxy, method, args) -> {
+                        if (args != null && args.length == 1 && args[0] != null) {
+                            registerRecipeOnBuilder(args[0]);
+                        }
+                        return null;
+                    }
+            );
+
+            for (Method method : event.getClass().getMethods()) {
+                if ("register".equals(method.getName()) && method.getParameterCount() == 1) {
+                    method.invoke(event, callback);
+                    System.out.println("[Narcotix] Registered acid brewing recipe with " + builderClassName + ".");
+                    return true;
+                }
+            }
+        } catch (Throwable throwable) {
+            System.out.println("[Narcotix] Acid brewing builder unavailable: " + builderClassName + " (" + throwable.getClass().getSimpleName() + ")");
+        }
+        return false;
+    }
+
+    private static void registerRecipeOnBuilder(Object builder) throws Exception {
+        Ingredient ingredient = Ingredient.of(NarcotixMod.LSD_CLUSTER.asItem());
+        for (Method method : builder.getClass().getMethods()) {
+            if ("registerItemRecipe".equals(method.getName()) && method.getParameterCount() == 3) {
+                method.invoke(builder, Items.POTION, ingredient, NarcotixMod.BOTTLE_OF_PURE_ACID);
+                return;
+            }
+        }
+    }
+}

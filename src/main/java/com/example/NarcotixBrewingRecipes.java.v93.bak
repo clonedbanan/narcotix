@@ -1,0 +1,27 @@
+package com.example;
+
+import net.fabricmc.fabric.api.registry.FabricBrewingRecipeRegistryBuilder;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.Ingredient;
+
+public final class NarcotixBrewingRecipes {
+    private static boolean registered = false;
+
+    private NarcotixBrewingRecipes() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        FabricBrewingRecipeRegistryBuilder.BUILD.register(builder -> {
+            builder.registerItemRecipe(
+                    Items.POTION,
+                    Ingredient.of(NarcotixMod.LSD_CLUSTER.asItem()),
+                    NarcotixMod.BOTTLE_OF_PURE_ACID
+            );
+        });
+    }
+}

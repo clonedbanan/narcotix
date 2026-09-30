@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "narcotix:bottle_of_pure_acid",
+    "minecraft:paper"
+  ],
+  "result": {
+    "id": "narcotix:acid",
+    "count": 1
+  }
+}

@@ -1,0 +1,89 @@
+package com.example;
+
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
+public final class NarcotixBrewingRecipes {
+    private static boolean registered = false;
+    private static int ticks = 0;
+
+    private static final int CHECK_EVERY_TICKS = 10;
+    private static final int BREW_SCAN_RADIUS = 8;
+
+    private NarcotixBrewingRecipes() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        ServerTickEvents.END_SERVER_TICK.register(NarcotixBrewingRecipes::tickServer);
+    }
+
+    private static void tickServer(MinecraftServer server) {
+        ticks++;
+        if (ticks < CHECK_EVERY_TICKS) {
+            return;
+        }
+        ticks = 0;
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerLevel level = player.level();
+            BlockPos center = player.blockPosition();
+            BlockPos min = center.offset(-BREW_SCAN_RADIUS, -BREW_SCAN_RADIUS, -BREW_SCAN_RADIUS);
+            BlockPos max = center.offset(BREW_SCAN_RADIUS, BREW_SCAN_RADIUS, BREW_SCAN_RADIUS);
+
+            for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
+                tryConvertBrewingStand(level, pos);
+            }
+        }
+    }
+
+    private static void tryConvertBrewingStand(ServerLevel level, BlockPos pos) {
+        String blockId = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
+        if (!blockId.equals("minecraft:brewing_stand")) {
+            return;
+        }
+
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (!(blockEntity instanceof Container container)) {
+            return;
+        }
+
+        if (container.getContainerSize() < 4) {
+            return;
+        }
+
+        ItemStack ingredient = container.getItem(3);
+        if (ingredient.isEmpty() || ingredient.getItem() != NarcotixMod.LSD_CLUSTER.asItem()) {
+            return;
+        }
+
+        for (int slot = 0; slot < 3; slot++) {
+            ItemStack bottle = container.getItem(slot);
+            if (isBrewableBottle(bottle)) {
+                container.setItem(slot, new ItemStack(NarcotixMod.BOTTLE_OF_PURE_ACID));
+                ingredient.shrink(1);
+                container.setItem(3, ingredient);
+                container.setChanged();
+                return;
+            }
+        }
+    }
+
+    private static boolean isBrewableBottle(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        return stack.getItem() == Items.POTION || stack.getItem() == Items.GLASS_BOTTLE;
+    }
+}

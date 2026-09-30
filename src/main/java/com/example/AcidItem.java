@@ -1,0 +1,56 @@
+package com.example;
+
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
+import net.minecraft.world.level.Level;
+
+public class AcidItem extends Item {
+    public static final int USE_DURATION = 32;
+    public static final int ACID_DURATION_TICKS = 20 * 45;
+
+    public AcidItem(Properties properties) {
+        super(properties);
+    }
+
+    @Override
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+        player.startUsingItem(hand);
+        return InteractionResult.CONSUME;
+    }
+
+    @Override
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
+        return USE_DURATION;
+    }
+
+    @Override
+    public ItemUseAnimation getUseAnimation(ItemStack stack) {
+        return ItemUseAnimation.EAT;
+    }
+
+    @Override
+    public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
+        if (!level.isClientSide()) {
+            entity.addEffect(new MobEffectInstance(NarcotixEffects.ACID, ACID_DURATION_TICKS, 0));
+            entity.addEffect(new MobEffectInstance(MobEffects.NAUSEA, 20 * 45, 0, false, false, false));
+
+            if (level instanceof ServerLevel serverLevel) {
+                serverLevel.levelEvent(2005, entity.blockPosition(), 0);
+            }
+
+            if (entity instanceof Player player && !player.getAbilities().instabuild) {
+                stack.shrink(1);
+            }
+        }
+
+        return stack;
+    }
+}

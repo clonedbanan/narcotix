@@ -1,0 +1,537 @@
+package com.example;
+
+import com.mojang.authlib.GameProfile;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
+
+public final class AcidHallucinationManager {
+    private static final Random RANDOM = new Random();
+    private static final List<Hallucination> HALLUCINATIONS = new ArrayList<>();
+    private static final List<SheepHallucination> SHEEP_HALLUCINATIONS = new ArrayList<>();
+    private static boolean wasActive = false;
+    private static int playerSpawnCooldown = 0;
+    private static int sheepSpawnCooldown = 0;
+    private static int nextEntityId = -100000;
+
+    private AcidHallucinationManager() {}
+
+    public static void register() {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> tick(client));
+        System.out.println("[Narcotix] Registered Acid hallucination manager v146 rainbow sheep fix.");
+    }
+
+    public static boolean isHallucination(Object entity) {
+        for (Hallucination h : HALLUCINATIONS) {
+            if (h.fake == entity) return true;
+        }
+        return false;
+    }
+
+    private static void tick(Minecraft client) {
+        LocalPlayer player = client.player;
+        ClientLevel level = client.level;
+        if (player == null || level == null) {
+            clear(level);
+            wasActive = false;
+            return;
+        }
+
+        boolean active = hasAcidVisuals(player);
+        if (!active) {
+            if (wasActive || !HALLUCINATIONS.isEmpty() || !SHEEP_HALLUCINATIONS.isEmpty()) {
+                clear(level);
+                System.out.println("[Narcotix] Acid hallucinations cleared.");
+            }
+            wasActive = false;
+            return;
+        }
+
+        if (!wasActive) {
+            System.out.println("[Narcotix] Acid hallucinations active; spawning fake people and rainbow sheep.");
+            playerSpawnCooldown = 0;
+            sheepSpawnCooldown = 20;
+        }
+        wasActive = true;
+
+        if (playerSpawnCooldown-- <= 0) {
+            if (HALLUCINATIONS.size() < 6) {
+                spawnHallucination(player, level, HALLUCINATIONS.size());
+            }
+            playerSpawnCooldown = 25 + RANDOM.nextInt(35);
+        }
+
+        if (sheepSpawnCooldown-- <= 0) {
+            if (SHEEP_HALLUCINATIONS.size() < 4) {
+                spawnRainbowSheep(player, level, SHEEP_HALLUCINATIONS.size());
+            }
+            sheepSpawnCooldown = 45 + RANDOM.nextInt(55);
+        }
+
+        Iterator<Hallucination> it = HALLUCINATIONS.iterator();
+        while (it.hasNext()) {
+            Hallucination h = it.next();
+            h.life--;
+            if (h.life <= 0 || h.fake.isRemoved()) {
+                safeRemove(h.fake);
+                it.remove();
+                continue;
+            }
+            updateHallucination(level, player, h);
+        }
+
+        Iterator<SheepHallucination> sheepIt = SHEEP_HALLUCINATIONS.iterator();
+        while (sheepIt.hasNext()) {
+            SheepHallucination h = sheepIt.next();
+            h.life--;
+            if (h.life <= 0 || h.sheep.isRemoved()) {
+                safeRemove(h.sheep);
+                sheepIt.remove();
+                continue;
+            }
+            updateSheepHallucination(player, h);
+        }
+    }
+
+    private static boolean hasAcidVisuals(LocalPlayer player) {
+        if (player.hasEffect(MobEffects.NAUSEA)) return true;
+        try {
+            return player.hasEffect(NarcotixEffects.ACID);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void spawnHallucination(LocalPlayer player, ClientLevel level, int slot) {
+        try {
+            GameProfile profile = new GameProfile(UUID.nameUUIDFromBytes(("narcotix-acid-hallucination-" + System.nanoTime()).getBytes(StandardCharsets.UTF_8)), "Steve");
+            RemotePlayer fake = new RemotePlayer(level, profile);
+            fake.setInvisible(false);
+            fake.noPhysics = false;
+            fake.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, Items.AIR.getDefaultInstance());
+
+            double angle = Math.toRadians(player.getYRot()) + (RANDOM.nextDouble() - 0.5D) * 1.8D;
+            double dist = 4.0D + RANDOM.nextDouble() * 3.5D;
+            double x = player.getX() - Math.sin(angle) * dist;
+            double z = player.getZ() + Math.cos(angle) * dist;
+            double y = player.getY();
+
+            fake.setPos(x, y, z);
+            faceEntity(fake, player);
+            fake.setOnGround(true);
+            fake.setShiftKeyDown(false);
+            fake.setSprinting(false);
+            fake.setNoGravity(false);
+
+            int id = nextEntityId--;
+            fake.setId(id);
+            level.addEntity(fake);
+            HALLUCINATIONS.add(new Hallucination(fake, 20 * 16 + RANDOM.nextInt(20 * 14), slot, angle));
+            System.out.println("[Narcotix] Spawned acid hallucination person at " + x + ", " + y + ", " + z);
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn acid hallucination person: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void spawnRainbowSheep(LocalPlayer player, ClientLevel level, int slot) {
+        try {
+            Entity sheep = createSheep(level);
+            if (sheep == null) {
+                System.out.println("[Narcotix] Could not create rainbow sheep hallucination; sheep type unavailable in this mapping.");
+                return;
+            }
+
+            double angle = Math.toRadians(player.getYRot()) + (RANDOM.nextDouble() - 0.5D) * 2.1D;
+            double dist = 5.0D + RANDOM.nextDouble() * 5.0D;
+            double x = player.getX() - Math.sin(angle) * dist;
+            double z = player.getZ() + Math.cos(angle) * dist;
+            double y = player.getY();
+
+            sheep.setPos(x, y, z);
+            sheep.setInvisible(false);
+            sheep.noPhysics = false;
+            sheep.setNoGravity(false);
+            sheep.setOnGround(true);
+            sheep.setId(nextEntityId--);
+
+            // The vanilla sheep renderer uses a sheep named jeb_ for the rainbow color cycle.
+            // setCustomNameVisible(false) keeps the name tag hidden.
+faceEntity(sheep, player);
+            applyRainbowSheepColor(sheep, slot * 17);
+            level.addEntity(sheep);
+            SHEEP_HALLUCINATIONS.add(new SheepHallucination(sheep, 20 * 14 + RANDOM.nextInt(20 * 16), slot, angle));
+            System.out.println("[Narcotix] Spawned rainbow sheep acid hallucination at " + x + ", " + y + ", " + z);
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn rainbow sheep hallucination: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Entity createSheep(ClientLevel level) {
+        try {
+            Identifier id = Identifier.fromNamespaceAndPath("minecraft", "sheep");
+            Object typeObj = getRegistryValue(BuiltInRegistries.ENTITY_TYPE, id);
+            if (!(typeObj instanceof EntityType<?> sheepType)) {
+                return null;
+            }
+
+            Entity made = tryEntityTypeCreate(sheepType, level);
+            if (made != null) return made;
+
+            // Fallback for mappings where create(...) is awkward: instantiate the concrete sheep class reflectively.
+            String[] classNames = new String[] {
+                    "net.minecraft.world.entity.animal.sheep.Sheep",
+                    "net.minecraft.world.entity.animal.Sheep"
+            };
+            for (String className : classNames) {
+                try {
+                    Class<?> cls = Class.forName(className);
+                    for (Constructor<?> ctor : cls.getConstructors()) {
+                        Class<?>[] params = ctor.getParameterTypes();
+                        if (params.length == 2 && params[0].isAssignableFrom(EntityType.class) && params[1].isAssignableFrom(level.getClass())) {
+                            Object obj = ctor.newInstance(sheepType, level);
+                            if (obj instanceof Entity entity) return entity;
+                        }
+                        if (params.length == 2 && EntityType.class.isAssignableFrom(params[0]) && params[1].isAssignableFrom(level.getClass())) {
+                            Object obj = ctor.newInstance(sheepType, level);
+                            if (obj instanceof Entity entity) return entity;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static Object getRegistryValue(Object registry, Identifier id) {
+        String[] names = new String[] { "getValue", "get", "getOptional" };
+        for (String name : names) {
+            try {
+                Method m = registry.getClass().getMethod(name, Identifier.class);
+                Object result = m.invoke(registry, id);
+                if (result instanceof java.util.Optional<?> optional) {
+                    return optional.orElse(null);
+                }
+                if (result != null) return result;
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Entity tryEntityTypeCreate(EntityType<?> type, ClientLevel level) {
+        for (Method m : type.getClass().getMethods()) {
+            if (!m.getName().equals("create")) continue;
+            if (!Entity.class.isAssignableFrom(m.getReturnType())) continue;
+            try {
+                Class<?>[] params = m.getParameterTypes();
+                Object[] args = new Object[params.length];
+                boolean ok = true;
+                for (int i = 0; i < params.length; i++) {
+                    Class<?> p = params[i];
+                    if (p.isAssignableFrom(level.getClass())) {
+                        args[i] = level;
+                    } else if (p.isEnum()) {
+                        Object[] constants = p.getEnumConstants();
+                        args[i] = constants != null && constants.length > 0 ? constants[0] : null;
+                    } else if (p == boolean.class || p == Boolean.class) {
+                        args[i] = false;
+                    } else if (p == double.class || p == Double.class) {
+                        args[i] = 0.0D;
+                    } else if (p == float.class || p == Float.class) {
+                        args[i] = 0.0F;
+                    } else if (p == int.class || p == Integer.class) {
+                        args[i] = 0;
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (!ok) continue;
+                Object result = m.invoke(type, args);
+                if (result instanceof Entity entity) return entity;
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static void updateHallucination(ClientLevel level, LocalPlayer player, Hallucination h) {
+        h.age++;
+
+        double orbit = h.baseAngle + Math.sin(h.age * 0.035D + h.slot) * 0.65D;
+        double dist = 4.6D + Math.sin(h.age * 0.021D + h.slot * 2.0D) * 1.25D;
+        double targetX = player.getX() - Math.sin(orbit) * dist;
+        double targetZ = player.getZ() + Math.cos(orbit) * dist;
+        double targetY = player.getY();
+
+        double dx = targetX - h.fake.getX();
+        double dz = targetZ - h.fake.getZ();
+        double step = 0.035D;
+        double moveX = clamp(dx, -step, step);
+        double moveZ = clamp(dz, -step, step);
+
+        h.fake.xo = h.fake.getX();
+        h.fake.yo = h.fake.getY();
+        h.fake.zo = h.fake.getZ();
+        h.fake.setPos(h.fake.getX() + moveX, targetY, h.fake.getZ() + moveZ);
+        h.fake.setDeltaMovement(moveX, 0.0D, moveZ);
+        h.fake.setOnGround(true);
+        faceEntity(h.fake, player);
+        tryUpdateWalkAnimation(h.fake, Math.sqrt(moveX * moveX + moveZ * moveZ));
+    }
+
+    private static void updateSheepHallucination(LocalPlayer player, SheepHallucination h) {
+        h.age++;
+
+        double orbit = h.baseAngle + Math.sin(h.age * 0.025D + h.slot * 1.7D) * 0.85D;
+        double dist = 5.5D + Math.sin(h.age * 0.018D + h.slot) * 1.8D;
+        double targetX = player.getX() - Math.sin(orbit) * dist;
+        double targetZ = player.getZ() + Math.cos(orbit) * dist;
+        double targetY = player.getY();
+
+        double dx = targetX - h.sheep.getX();
+        double dz = targetZ - h.sheep.getZ();
+        double step = 0.028D;
+        double moveX = clamp(dx, -step, step);
+        double moveZ = clamp(dz, -step, step);
+
+        h.sheep.xo = h.sheep.getX();
+        h.sheep.yo = h.sheep.getY();
+        h.sheep.zo = h.sheep.getZ();
+        h.sheep.setPos(h.sheep.getX() + moveX, targetY, h.sheep.getZ() + moveZ);
+        h.sheep.setDeltaMovement(moveX, 0.0D, moveZ);
+        h.sheep.setOnGround(true);
+faceEntity(h.sheep, player);
+        tryUpdateWalkAnimation(h.sheep, Math.sqrt(moveX * moveX + moveZ * moveZ));
+    }
+
+    private static void faceEntity(Entity entity, LocalPlayer player) {
+        double dx = player.getX() - entity.getX();
+        double dz = player.getZ() - entity.getZ();
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+        entity.setYRot(yaw);
+        entity.setYHeadRot(yaw);
+        entity.setXRot(0.0F);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static void tryUpdateWalkAnimation(Entity entity, double speed) {
+        trySetFloat(entity, "walkAnimationSpeed", (float)Math.min(1.0D, speed * 10.0D));
+        trySetFloat(entity, "walkAnimationPosition", getFloat(entity, "walkAnimationPosition") + (float)(speed * 2.5D));
+        trySetFloat(entity, "animationSpeed", (float)Math.min(1.0D, speed * 10.0D));
+        trySetFloat(entity, "animationPosition", getFloat(entity, "animationPosition") + (float)(speed * 2.5D));
+    }
+
+    private static float getFloat(Object obj, String name) {
+        try {
+            Field f = findField(obj.getClass(), name);
+            if (f == null) return 0.0F;
+            f.setAccessible(true);
+            return f.getFloat(obj);
+        } catch (Throwable ignored) {
+            return 0.0F;
+        }
+    }
+
+    private static void trySetFloat(Object obj, String name, float value) {
+        try {
+            Field f = findField(obj.getClass(), name);
+            if (f == null) return;
+            f.setAccessible(true);
+            f.setFloat(obj, value);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static Field findField(Class<?> cls, String name) {
+        Class<?> c = cls;
+        while (c != null) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                c = c.getSuperclass();
+            }
+        }
+        return null;
+    }
+catch (Throwable ignored) {
+        }
+        tryInvokeNoArg(sheep, "setCustomNameVisible", false);
+        tryInvokeNoArg(sheep, "setAlwaysRenderNameTag", false);
+        tryInvokeNoArg(sheep, "setCustomNameVisible", Boolean.FALSE);
+    }
+
+    private static void tryInvokeNoArg(Object obj, String methodName, boolean value) {
+        tryInvokeNoArg(obj, methodName, Boolean.valueOf(value));
+    }
+
+    private static void tryInvokeNoArg(Object obj, String methodName, Boolean value) {
+        if (obj == null) return;
+        Class<?> c = obj.getClass();
+        while (c != null) {
+            try {
+                java.lang.reflect.Method m = c.getDeclaredMethod(methodName, boolean.class);
+                m.setAccessible(true);
+                m.invoke(obj, value.booleanValue());
+                return;
+            } catch (Throwable ignored) {
+                try {
+                    java.lang.reflect.Method m = c.getDeclaredMethod(methodName, Boolean.class);
+                    m.setAccessible(true);
+                    m.invoke(obj, value);
+                    return;
+                } catch (Throwable ignored2) {
+                    c = c.getSuperclass();
+                }
+            }
+        }
+    }
+    private static void clear(ClientLevel level) {
+        for (Hallucination h : HALLUCINATIONS) {
+            safeRemove(h.fake);
+        }
+        for (SheepHallucination h : SHEEP_HALLUCINATIONS) {
+            safeRemove(h.sheep);
+        }
+        HALLUCINATIONS.clear();
+        SHEEP_HALLUCINATIONS.clear();
+    }
+
+    private static void safeRemove(Entity entity) {
+        try {
+            entity.discard();
+        } catch (Throwable ignored) {
+            try { entity.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED); } catch (Throwable ignored2) {}
+        }
+    }
+
+    private static final class Hallucination {
+        final RemotePlayer fake;
+        int life;
+        final int slot;
+        final double baseAngle;
+        int age;
+
+        Hallucination(RemotePlayer fake, int life, int slot, double baseAngle) {
+            this.fake = fake;
+            this.life = life;
+            this.slot = slot;
+            this.baseAngle = baseAngle;
+            this.age = RANDOM.nextInt(80);
+        }
+    }
+
+
+    private static final String[] RAINBOW_SHEEP_COLORS = new String[] {
+            "RED", "ORANGE", "YELLOW", "LIME", "LIGHT_BLUE", "BLUE", "PURPLE", "MAGENTA", "PINK"
+    };
+
+    private static void applyRainbowSheepColor(Object sheep, int age) {
+        if (sheep == null) return;
+        try {
+            // Keep name tags/hover names gone. The rainbow is now manual, not from a jeb_ name.
+            tryInvokeBoolean(sheep, "setCustomNameVisible", false);
+            tryInvokeBoolean(sheep, "setAlwaysRenderNameTag", false);
+            tryInvokeObject(sheep, "setCustomName", new Class<?>[] { net.minecraft.network.chat.Component.class }, new Object[] { null });
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Class<?> dyeClass = Class.forName("net.minecraft.world.item.DyeColor");
+            Object[] constants = dyeClass.getEnumConstants();
+            if (constants == null || constants.length == 0) return;
+
+            int index = Math.floorMod(age / 8, RAINBOW_SHEEP_COLORS.length);
+            String wanted = RAINBOW_SHEEP_COLORS[index];
+            Object chosen = null;
+            for (Object constant : constants) {
+                if (constant instanceof Enum<?> enumValue && enumValue.name().equals(wanted)) {
+                    chosen = constant;
+                    break;
+                }
+            }
+            if (chosen == null) chosen = constants[Math.floorMod(index, constants.length)];
+
+            java.lang.reflect.Method method = findMethod(sheep.getClass(), "setColor", dyeClass);
+            if (method != null) {
+                method.setAccessible(true);
+                method.invoke(sheep, chosen);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void tryInvokeBoolean(Object target, String name, boolean value) {
+        try {
+            java.lang.reflect.Method method = findMethod(target.getClass(), name, boolean.class);
+            if (method == null) method = findMethod(target.getClass(), name, Boolean.class);
+            if (method == null) return;
+            method.setAccessible(true);
+            method.invoke(target, value);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void tryInvokeObject(Object target, String name, Class<?>[] types, Object[] values) {
+        try {
+            java.lang.reflect.Method method = target.getClass().getMethod(name, types);
+            method.setAccessible(true);
+            method.invoke(target, values);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static java.lang.reflect.Method findMethod(Class<?> cls, String name, Class<?> parameterType) {
+        Class<?> c = cls;
+        while (c != null) {
+            for (java.lang.reflect.Method method : c.getDeclaredMethods()) {
+                Class<?>[] params = method.getParameterTypes();
+                if (method.getName().equals(name) && params.length == 1 && params[0].isAssignableFrom(parameterType)) {
+                    return method;
+                }
+            }
+            c = c.getSuperclass();
+        }
+        return null;
+    }
+    private static final class SheepHallucination {
+        final Entity sheep;
+        int life;
+        final int slot;
+        final double baseAngle;
+        int age;
+
+        SheepHallucination(Entity sheep, int life, int slot, double baseAngle) {
+            this.sheep = sheep;
+            this.life = life;
+            this.slot = slot;
+            this.baseAngle = baseAngle;
+            this.age = RANDOM.nextInt(80);
+        }
+    }
+}

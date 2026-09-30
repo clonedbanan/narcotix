@@ -1,0 +1,61 @@
+package com.example;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+
+public class AcidCrystalBlock extends Block {
+    public static final DirectionProperty FACING = BlockStateProperties.FACING;
+
+    private static final VoxelShape UP_SHAPE = Block.box(3.0D, 0.0D, 3.0D, 13.0D, 10.0D, 13.0D);
+    private static final VoxelShape DOWN_SHAPE = Block.box(3.0D, 6.0D, 3.0D, 13.0D, 16.0D, 13.0D);
+    private static final VoxelShape NORTH_SHAPE = Block.box(3.0D, 3.0D, 6.0D, 13.0D, 13.0D, 16.0D);
+    private static final VoxelShape SOUTH_SHAPE = Block.box(3.0D, 3.0D, 0.0D, 13.0D, 13.0D, 10.0D);
+    private static final VoxelShape WEST_SHAPE = Block.box(6.0D, 3.0D, 3.0D, 16.0D, 13.0D, 13.0D);
+    private static final VoxelShape EAST_SHAPE = Block.box(0.0D, 3.0D, 3.0D, 10.0D, 13.0D, 13.0D);
+
+    public AcidCrystalBlock(BlockBehaviour.Properties properties) {
+        super(properties);
+        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.UP));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(FACING);
+    }
+
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return this.defaultBlockState().setValue(FACING, context.getClickedFace());
+    }
+
+    @Override
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        Direction facing = state.getValue(FACING);
+        if (facing == Direction.DOWN) {
+            return DOWN_SHAPE;
+        }
+        if (facing == Direction.NORTH) {
+            return NORTH_SHAPE;
+        }
+        if (facing == Direction.SOUTH) {
+            return SOUTH_SHAPE;
+        }
+        if (facing == Direction.WEST) {
+            return WEST_SHAPE;
+        }
+        if (facing == Direction.EAST) {
+            return EAST_SHAPE;
+        }
+        return UP_SHAPE;
+    }
+}

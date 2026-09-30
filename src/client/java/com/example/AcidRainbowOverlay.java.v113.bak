@@ -1,0 +1,499 @@
+package com.example;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.effect.MobEffects;
+
+public final class AcidRainbowOverlay {
+    private static final Map<Class<?>, Object> PIPELINE_CACHE = new HashMap<>();
+    private static int activeVisualTicks = 0;
+    private static long lastEffectDebugMs = 0L;
+    private static long lastNoFillDebugMs = 0L;
+    private static boolean loggedHudElement = false;
+    private static boolean loggedHudCallback = false;
+    private static boolean loggedRenderCall = false;
+    private static boolean loggedFillSuccess = false;
+
+    private AcidRainbowOverlay() {
+    }
+
+    public static void register() {
+        registerHudElementRegistry();
+        registerOldHudRenderCallback();
+        registerClientTickTrigger();
+    }
+
+    private static void registerHudElementRegistry() {
+        try {
+            Class<?> registryClass = Class.forName("net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry");
+            Class<?> elementClass = Class.forName("net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement");
+
+            Method addLast = findStaticTwoArgMethod(registryClass, "addLast", elementClass);
+            if (addLast == null) {
+                System.out.println("[Narcotix] Acid overlay skipped HudElementRegistry: addLast was not found.");
+                return;
+            }
+
+            Object id = makeIdentifierForType(addLast.getParameterTypes()[0], "acid_rainbow_overlay");
+            Object hudElement = Proxy.newProxyInstance(
+                    elementClass.getClassLoader(),
+                    new Class<?>[] { elementClass },
+                    (proxy, method, args) -> {
+                        if (method.getDeclaringClass() == Object.class) {
+                            if ("toString".equals(method.getName())) return "Narcotix Acid Rainbow Overlay";
+                            if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                            if ("equals".equals(method.getName())) return proxy == args[0];
+                        }
+                        if (args != null && args.length > 0 && isProbablyDrawContext(args[0])) {
+                            render(args[0]);
+                        }
+                        return null;
+                    });
+
+            addLast.invoke(null, id, hudElement);
+            loggedHudElement = true;
+            System.out.println("[Narcotix] Registered Acid rainbow overlay through HudElementRegistry using id type " + addLast.getParameterTypes()[0].getName() + ".");
+        } catch (Throwable throwable) {
+            System.out.println("[Narcotix] Acid HudElementRegistry overlay registration failed: " + throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
+        }
+    }
+
+    private static void registerOldHudRenderCallback() {
+        try {
+            Class<?> callbackClass = Class.forName("net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback");
+            Object event = callbackClass.getField("EVENT").get(null);
+            Method register = findInstanceRegister(event.getClass());
+            if (register == null) {
+                System.out.println("[Narcotix] Acid overlay skipped HudRenderCallback: EVENT.register was not found.");
+                return;
+            }
+
+            Object listener = Proxy.newProxyInstance(
+                    callbackClass.getClassLoader(),
+                    new Class<?>[] { callbackClass },
+                    (proxy, method, args) -> {
+                        if (method.getDeclaringClass() == Object.class) {
+                            if ("toString".equals(method.getName())) return "Narcotix Acid Old HUD Callback";
+                            if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                            if ("equals".equals(method.getName())) return proxy == args[0];
+                        }
+                        if (args != null && args.length > 0 && isProbablyDrawContext(args[0])) {
+                            render(args[0]);
+                        }
+                        return null;
+                    });
+
+            register.invoke(event, listener);
+            loggedHudCallback = true;
+            System.out.println("[Narcotix] Registered Acid rainbow overlay through HudRenderCallback fallback.");
+        } catch (ClassNotFoundException ignored) {
+            System.out.println("[Narcotix] HudRenderCallback fallback not present; using HudElementRegistry only.");
+        } catch (Throwable throwable) {
+            System.out.println("[Narcotix] Acid HudRenderCallback fallback registration failed: " + throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
+        }
+    }
+
+    private static void registerClientTickTrigger() {
+        try {
+            Class<?> eventsClass = Class.forName("net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents");
+            Object endTick = eventsClass.getField("END_CLIENT_TICK").get(null);
+            Method register = findInstanceRegister(endTick.getClass());
+            if (register == null) {
+                System.out.println("[Narcotix] Acid overlay skipped client tick trigger: END_CLIENT_TICK.register was not found.");
+                return;
+            }
+
+            Class<?> listenerClass = register.getParameterTypes()[0];
+            Object listener = Proxy.newProxyInstance(
+                    listenerClass.getClassLoader(),
+                    new Class<?>[] { listenerClass },
+                    (proxy, method, args) -> {
+                        if (method.getDeclaringClass() == Object.class) {
+                            if ("toString".equals(method.getName())) return "Narcotix Acid Client Tick Trigger";
+                            if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                            if ("equals".equals(method.getName())) return proxy == args[0];
+                        }
+                        tickClient(args != null && args.length > 0 ? args[0] : null);
+                        return null;
+                    });
+
+            register.invoke(endTick, listener);
+            System.out.println("[Narcotix] Registered Acid overlay client tick trigger.");
+        } catch (Throwable throwable) {
+            System.out.println("[Narcotix] Acid overlay client tick trigger failed: " + throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
+        }
+    }
+
+    private static Method findStaticTwoArgMethod(Class<?> owner, String name, Class<?> secondArgClass) {
+        for (Method method : owner.getMethods()) {
+            if (!name.equals(method.getName())) continue;
+            if (!Modifier.isStatic(method.getModifiers())) continue;
+            Class<?>[] params = method.getParameterTypes();
+            if (params.length == 2 && params[1].isAssignableFrom(secondArgClass)) return method;
+            if (params.length == 2 && secondArgClass.isAssignableFrom(params[1])) return method;
+        }
+        return null;
+    }
+
+    private static Method findInstanceRegister(Class<?> owner) {
+        for (Method method : owner.getMethods()) {
+            if (!"register".equals(method.getName())) continue;
+            if (Modifier.isStatic(method.getModifiers())) continue;
+            if (method.getParameterTypes().length == 1) return method;
+        }
+        return null;
+    }
+
+    private static Object makeIdentifierForType(Class<?> idType, String path) throws Exception {
+        try {
+            Method factory = idType.getMethod("fromNamespaceAndPath", String.class, String.class);
+            return factory.invoke(null, NarcotixMod.MOD_ID, path);
+        } catch (NoSuchMethodException ignored) {
+            Constructor<?> constructor = idType.getConstructor(String.class, String.class);
+            return constructor.newInstance(NarcotixMod.MOD_ID, path);
+        }
+    }
+
+    private static boolean isProbablyDrawContext(Object object) {
+        if (object == null) return false;
+        String name = object.getClass().getName().toLowerCase(Locale.ROOT);
+        return name.contains("gui") || name.contains("draw") || hasFillMethod(object.getClass());
+    }
+
+    private static boolean hasFillMethod(Class<?> cls) {
+        Class<?> current = cls;
+        while (current != null) {
+            for (Method method : current.getDeclaredMethods()) {
+                if ("fill".equals(method.getName())) return true;
+            }
+            current = current.getSuperclass();
+        }
+        return false;
+    }
+
+    private static void tickClient(Object clientObject) {
+        Minecraft minecraft = clientObject instanceof Minecraft ? (Minecraft) clientObject : Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) {
+            activeVisualTicks = 0;
+            return;
+        }
+
+        String effectDescription = describeActiveEffects(minecraft);
+        if (effectDescription.toLowerCase(Locale.ROOT).contains("acid") || effectDescription.toLowerCase(Locale.ROOT).contains("nausea") || effectDescription.toLowerCase(Locale.ROOT).contains("confusion")) {
+            activeVisualTicks = 12;
+            debugEffectTrigger(effectDescription);
+        } else if (activeVisualTicks > 0) {
+            activeVisualTicks--;
+        }
+    }
+
+    private static void render(Object drawContext) {
+        if (!loggedRenderCall) {
+            loggedRenderCall = true;
+            System.out.println("[Narcotix] Acid overlay render callback is running. Context=" + drawContext.getClass().getName()
+                    + ", HudElement=" + loggedHudElement + ", HudRenderCallback=" + loggedHudCallback + ".");
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) return;
+
+        String effectDescription = describeActiveEffects(minecraft);
+        String lower = effectDescription.toLowerCase(Locale.ROOT);
+        if (lower.contains("acid") || lower.contains("nausea") || lower.contains("confusion")) {
+            activeVisualTicks = Math.max(activeVisualTicks, 12);
+            debugEffectTrigger(effectDescription);
+        }
+
+        if (activeVisualTicks <= 0) return;
+
+        int width = getWindowInt(minecraft, "getGuiScaledWidth", "getWidth");
+        int height = getWindowInt(minecraft, "getGuiScaledHeight", "getHeight");
+        if (width <= 0 || height <= 0) return;
+
+        enableBlend();
+
+        long now = System.currentTimeMillis();
+        float baseHue = (now % 3600L) / 3600.0F;
+        boolean drewAnything = false;
+
+        drewAnything |= fill(drawContext, 0, 0, width, height, hsvToArgb(baseHue, 0.95F, 1.00F, 0x70));
+
+        int bandHeight = Math.max(24, height / 5);
+        int travel = height + bandHeight * 2;
+        for (int i = 0; i < 8; i++) {
+            float hue = baseHue + (i * 0.125F);
+            int alpha = 0x88;
+            int color = hsvToArgb(hue, 1.0F, 1.0F, alpha);
+            int offset = (int) (((now / 7L) + (i * travel / 8)) % travel) - bandHeight;
+            drewAnything |= fill(drawContext, 0, offset, width, Math.min(height, offset + bandHeight), color);
+        }
+
+        int edgeSize = Math.max(24, Math.min(width, height) / 7);
+        drewAnything |= fill(drawContext, 0, 0, width, edgeSize, hsvToArgb(baseHue + 0.20F, 1.0F, 1.0F, 0xB8));
+        drewAnything |= fill(drawContext, 0, height - edgeSize, width, height, hsvToArgb(baseHue + 0.45F, 1.0F, 1.0F, 0xB8));
+        drewAnything |= fill(drawContext, 0, 0, edgeSize, height, hsvToArgb(baseHue + 0.70F, 1.0F, 1.0F, 0xB8));
+        drewAnything |= fill(drawContext, width - edgeSize, 0, width, height, hsvToArgb(baseHue + 0.95F, 1.0F, 1.0F, 0xB8));
+
+        if (drewAnything && !loggedFillSuccess) {
+            loggedFillSuccess = true;
+            System.out.println("[Narcotix] Acid rainbow overlay is drawing successfully.");
+        }
+        if (!drewAnything) {
+            debugNoFill(drawContext);
+        }
+    }
+
+    private static String describeActiveEffects(Minecraft minecraft) {
+        StringBuilder builder = new StringBuilder();
+
+        try {
+            if (minecraft.player.hasEffect(NarcotixEffects.ACID)) builder.append(" direct:narcotix:acid");
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (minecraft.player.hasEffect(MobEffects.NAUSEA)) builder.append(" direct:minecraft:nausea");
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Collection<?> effects = minecraft.player.getActiveEffects();
+            for (Object instance : effects) {
+                builder.append(" [").append(describeObjectDeep(instance, 0)).append("]");
+            }
+        } catch (Throwable throwable) {
+            builder.append(" effects-read-failed:").append(throwable.getClass().getSimpleName());
+        }
+
+        return builder.toString();
+    }
+
+    private static String describeObjectDeep(Object object, int depth) {
+        if (object == null) return "null";
+        if (depth > 3) return shortText(object);
+
+        StringBuilder builder = new StringBuilder();
+        builder.append(shortText(object));
+
+        appendMethod(builder, object, "getDescriptionId");
+        appendMethod(builder, object, "getRegisteredName");
+        appendMethod(builder, object, "getKey");
+        appendMethod(builder, object, "unwrapKey");
+
+        Object effect = callNoArg(object, "getEffect");
+        if (effect != null && effect != object) {
+            builder.append(" effect=").append(describeObjectDeep(effect, depth + 1));
+        }
+
+        Object value = callNoArg(object, "value");
+        if (value != null && value != object) {
+            builder.append(" value=").append(describeObjectDeep(value, depth + 1));
+            builder.append(" registryKey=").append(registryKeyForMobEffect(value));
+        }
+
+        return builder.toString();
+    }
+
+    private static String shortText(Object object) {
+        String text;
+        try {
+            text = String.valueOf(object);
+        } catch (Throwable ignored) {
+            text = object.getClass().getName();
+        }
+        if (text.length() > 180) text = text.substring(0, 180);
+        return object.getClass().getName() + ":" + text;
+    }
+
+    private static void appendMethod(StringBuilder builder, Object object, String methodName) {
+        Object value = callNoArg(object, methodName);
+        if (value != null) builder.append(' ').append(methodName).append('=').append(value);
+    }
+
+    private static Object callNoArg(Object object, String methodName) {
+        try {
+            Method method = object.getClass().getMethod(methodName);
+            method.setAccessible(true);
+            return method.invoke(object);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static String registryKeyForMobEffect(Object effectValue) {
+        try {
+            Class<?> registries = Class.forName("net.minecraft.core.registries.BuiltInRegistries");
+            for (Field field : registries.getDeclaredFields()) {
+                if (!Modifier.isStatic(field.getModifiers())) continue;
+                String name = field.getName().toUpperCase(Locale.ROOT);
+                if (!name.contains("MOB_EFFECT")) continue;
+                field.setAccessible(true);
+                Object registry = field.get(null);
+                if (registry == null) continue;
+                for (String methodName : new String[] { "getKey", "getId" }) {
+                    try {
+                        Method method = registry.getClass().getMethod(methodName, Object.class);
+                        Object key = method.invoke(registry, effectValue);
+                        if (key != null) return String.valueOf(key);
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "unknown";
+    }
+
+    private static int getWindowInt(Minecraft minecraft, String primary, String fallback) {
+        try {
+            Object window = minecraft.getWindow();
+            try {
+                return ((Number) window.getClass().getMethod(primary).invoke(window)).intValue();
+            } catch (Throwable ignored) {
+                return ((Number) window.getClass().getMethod(fallback).invoke(window)).intValue();
+            }
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static void enableBlend() {
+        try {
+            Class<?> renderSystem = Class.forName("com.mojang.blaze3d.systems.RenderSystem");
+            try { renderSystem.getMethod("enableBlend").invoke(null); } catch (Throwable ignored) { }
+            try { renderSystem.getMethod("defaultBlendFunc").invoke(null); } catch (Throwable ignored) { }
+            try { renderSystem.getMethod("disableDepthTest").invoke(null); } catch (Throwable ignored) { }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static boolean fill(Object drawContext, int x1, int y1, int x2, int y2, int argb) {
+        if (y2 <= y1 || x2 <= x1) return false;
+
+        Class<?> current = drawContext.getClass();
+        while (current != null) {
+            for (Method method : current.getDeclaredMethods()) {
+                if (!"fill".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                try {
+                    method.setAccessible(true);
+                    if (isFiveIntFill(params)) {
+                        method.invoke(drawContext, x1, y1, x2, y2, argb);
+                        return true;
+                    }
+                    if (isPipelineFill(params)) {
+                        Object pipeline = getGuiPipeline(params[0]);
+                        if (pipeline != null) {
+                            method.invoke(drawContext, pipeline, x1, y1, x2, y2, argb);
+                            return true;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return false;
+    }
+
+    private static boolean isFiveIntFill(Class<?>[] params) {
+        return params.length == 5
+                && params[0] == int.class
+                && params[1] == int.class
+                && params[2] == int.class
+                && params[3] == int.class
+                && params[4] == int.class;
+    }
+
+    private static boolean isPipelineFill(Class<?>[] params) {
+        return params.length == 6
+                && params[0] != int.class
+                && params[1] == int.class
+                && params[2] == int.class
+                && params[3] == int.class
+                && params[4] == int.class
+                && params[5] == int.class;
+    }
+
+    private static Object getGuiPipeline(Class<?> pipelineClass) {
+        if (PIPELINE_CACHE.containsKey(pipelineClass)) return PIPELINE_CACHE.get(pipelineClass);
+
+        Object pipeline = findGuiPipelineIn("net.minecraft.client.renderer.RenderPipelines", pipelineClass);
+        if (pipeline == null) pipeline = findGuiPipelineIn("com.mojang.blaze3d.pipeline.RenderPipelines", pipelineClass);
+        if (pipeline == null) pipeline = findGuiPipelineIn("net.minecraft.client.gui.GuiGraphics", pipelineClass);
+
+        PIPELINE_CACHE.put(pipelineClass, pipeline);
+        return pipeline;
+    }
+
+    private static Object findGuiPipelineIn(String className, Class<?> pipelineClass) {
+        try {
+            Class<?> cls = Class.forName(className);
+            Object best = null;
+            for (Field field : cls.getDeclaredFields()) {
+                if (!Modifier.isStatic(field.getModifiers())) continue;
+                if (!pipelineClass.isAssignableFrom(field.getType())) continue;
+                field.setAccessible(true);
+                String name = field.getName().toUpperCase(Locale.ROOT);
+                Object value = field.get(null);
+                if (value == null) continue;
+                if (name.contains("GUI_OVERLAY") || name.equals("GUI")) return value;
+                if (best == null && name.contains("GUI")) best = value;
+            }
+            return best;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void debugEffectTrigger(String effectDescription) {
+        long now = System.currentTimeMillis();
+        if (now - lastEffectDebugMs < 2000L) return;
+        lastEffectDebugMs = now;
+        System.out.println("[Narcotix] Acid overlay trigger detected. Active effects=" + effectDescription);
+    }
+
+    private static void debugNoFill(Object drawContext) {
+        long now = System.currentTimeMillis();
+        if (now - lastNoFillDebugMs < 2500L) return;
+        lastNoFillDebugMs = now;
+        System.out.println("[Narcotix] Acid rainbow overlay is active, but no usable fill method drew anything. Context="
+                + drawContext.getClass().getName() + ".");
+    }
+
+    private static int hsvToArgb(float h, float s, float v, int alpha) {
+        h = h - (float) Math.floor(h);
+        float r = 0.0F;
+        float g = 0.0F;
+        float b = 0.0F;
+
+        int i = (int) Math.floor(h * 6.0F);
+        float f = h * 6.0F - i;
+        float p = v * (1.0F - s);
+        float q = v * (1.0F - f * s);
+        float t = v * (1.0F - (1.0F - f) * s);
+
+        switch (i % 6) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            case 5 -> { r = v; g = p; b = q; }
+            default -> { }
+        }
+
+        int ri = Math.max(0, Math.min(255, (int) (r * 255.0F)));
+        int gi = Math.max(0, Math.min(255, (int) (g * 255.0F)));
+        int bi = Math.max(0, Math.min(255, (int) (b * 255.0F)));
+        return ((alpha & 255) << 24) | (ri << 16) | (gi << 8) | bi;
+    }
+}

@@ -1,0 +1,80 @@
+package com.example;
+
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
+
+public final class NarcotixBrewingRecipes {
+    private static boolean registered = false;
+
+    private NarcotixBrewingRecipes() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> {
+            ItemStack held = player.getItemInHand(hand);
+            if (!held.is(NarcotixMod.LSD_SHARD)) {
+                return InteractionResult.PASS;
+            }
+
+            BlockPos pos = hitResult.getBlockPos();
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (!(blockEntity instanceof BrewingStandBlockEntity brewingStand)) {
+                return InteractionResult.PASS;
+            }
+
+            if (level.isClientSide()) {
+                return InteractionResult.SUCCESS;
+            }
+
+            boolean convertedAny = convertPotionBottles(level, pos, brewingStand);
+            if (!convertedAny) {
+                return InteractionResult.PASS;
+            }
+
+            if (!player.getAbilities().instabuild) {
+                held.shrink(1);
+            }
+
+            brewingStand.setChanged();
+            level.playSound(null, pos, SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS, 1.0F, 1.0F);
+            return InteractionResult.SUCCESS;
+        });
+    }
+
+    private static boolean convertPotionBottles(Level level, BlockPos pos, BrewingStandBlockEntity brewingStand) {
+        boolean convertedAny = false;
+
+        for (int slot = 0; slot < 3; slot++) {
+            ItemStack bottle = brewingStand.getItem(slot);
+            if (isBrewablePotionBottle(bottle)) {
+                brewingStand.setItem(slot, new ItemStack(NarcotixMod.BOTTLE_OF_PURE_ACID));
+                convertedAny = true;
+            }
+        }
+
+        if (convertedAny && level instanceof ServerLevel serverLevel) {
+            serverLevel.levelEvent(1035, pos, 0);
+        }
+
+        return convertedAny;
+    }
+
+    private static boolean isBrewablePotionBottle(ItemStack stack) {
+        return !stack.isEmpty() && stack.is(Items.POTION);
+    }
+}

@@ -1,0 +1,105 @@
+package com.example;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+
+public final class NarcotixBrewingRecipes {
+    private static boolean registered = false;
+
+    private NarcotixBrewingRecipes() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        Item input = Items.POTION;
+        Item ingredient = NarcotixMod.LSD_CLUSTER.asItem();
+        Item output = NarcotixMod.BOTTLE_OF_PURE_ACID;
+
+        if (tryRegisterFabricBrewingRecipe(input, ingredient, output)) {
+            System.out.println("[Narcotix] Registered brewing recipe: potion bottle + acid crystals -> bottle of pure acid.");
+        } else {
+            System.out.println("[Narcotix] Could not find a compatible Fabric brewing registry API. Acid still compiles, but brewing may not register until the API hook is adjusted.");
+        }
+    }
+
+    private static boolean tryRegisterFabricBrewingRecipe(Item input, Item ingredient, Item output) {
+        String[] classNames = new String[] {
+                "net.fabricmc.fabric.api.registry.FabricBrewingRecipeRegistry",
+                "net.fabricmc.fabric.api.registry.FabricBrewingRecipeRegistryImpl"
+        };
+
+        String[] methodNames = new String[] {
+                "registerItemRecipe",
+                "registerRecipe"
+        };
+
+        for (String className : classNames) {
+            try {
+                Class<?> clazz = Class.forName(className);
+
+                for (String methodName : methodNames) {
+                    Method method = findCompatibleThreeArgStaticMethod(clazz, methodName, input, ingredient, output);
+                    if (method == null) {
+                        continue;
+                    }
+
+                    method.setAccessible(true);
+                    method.invoke(null, input, ingredient, output);
+                    return true;
+                }
+            } catch (Throwable ignored) {
+                // Try the next possible class/method shape.
+            }
+        }
+
+        return false;
+    }
+
+    private static Method findCompatibleThreeArgStaticMethod(Class<?> clazz, String name, Item input, Item ingredient, Item output) {
+        Method[] methods = clazz.getMethods();
+
+        for (Method method : methods) {
+            if (!method.getName().equals(name)) {
+                continue;
+            }
+            if (!Modifier.isStatic(method.getModifiers())) {
+                continue;
+            }
+            if (method.getParameterCount() != 3) {
+                continue;
+            }
+
+            Class<?>[] types = method.getParameterTypes();
+            if (accepts(types[0], input) && accepts(types[1], ingredient) && accepts(types[2], output)) {
+                return method;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean accepts(Class<?> type, Object value) {
+        if (value == null) {
+            return !type.isPrimitive();
+        }
+
+        if (type.isAssignableFrom(value.getClass())) {
+            return true;
+        }
+
+        for (Class<?> iface : value.getClass().getInterfaces()) {
+            if (type.isAssignableFrom(iface)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

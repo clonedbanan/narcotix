@@ -1,0 +1,30 @@
+{
+  "variants": {
+    "facing=up": {
+      "model": "narcotix:block/lsd_cluster"
+    },
+    "facing=down": {
+      "model": "narcotix:block/lsd_cluster",
+      "x": 180
+    },
+    "facing=north": {
+      "model": "narcotix:block/lsd_cluster",
+      "x": 90
+    },
+    "facing=south": {
+      "model": "narcotix:block/lsd_cluster",
+      "x": 90,
+      "y": 180
+    },
+    "facing=west": {
+      "model": "narcotix:block/lsd_cluster",
+      "x": 90,
+      "y": 270
+    },
+    "facing=east": {
+      "model": "narcotix:block/lsd_cluster",
+      "x": 90,
+      "y": 90
+    }
+  }
+}

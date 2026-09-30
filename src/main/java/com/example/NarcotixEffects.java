@@ -11,6 +11,7 @@ public final class NarcotixEffects {
     public static final Holder<MobEffect> WEED_HIGH = register("weed_high", 0xD7A45A);
     public static final Holder<MobEffect> COKE_RUSH = register("coke_rush", 0xF5F5F5);
     public static final Holder<MobEffect> TOBACCO = register("tobacco", 0xB47A44);
+    public static final Holder<MobEffect> ACID = register("acid", 0xB86BFF);
 
     private NarcotixEffects() {
     }

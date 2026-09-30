@@ -1,0 +1,202 @@
+package com.example;
+
+import com.mojang.authlib.GameProfile;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.BlockState;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+import java.util.UUID;
+
+public final class AcidHallucinationManager {
+    private static final Random RANDOM = new Random();
+    private static final int MAX_HALLUCINATIONS = 7;
+    private static final int SPAWN_CHECK_INTERVAL = 12;
+    private static final int MIN_LIFETIME_TICKS = 90;
+    private static final int EXTRA_LIFETIME_TICKS = 150;
+
+    private static final List<Hallucination> HALLUCINATIONS = new ArrayList<>();
+    private static int tickCounter = 0;
+    private static boolean registered = false;
+    private static boolean wasActive = false;
+
+    private AcidHallucinationManager() {
+    }
+
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        ClientTickEvents.END_CLIENT_TICK.register(AcidHallucinationManager::tick);
+        System.out.println("[Narcotix] Registered Acid hallucination manager.");
+    }
+
+    private static void tick(Minecraft client) {
+        LocalPlayer player = client.player;
+        ClientLevel level = client.level;
+
+        if (player == null || level == null) {
+            clearAll();
+            wasActive = false;
+            return;
+        }
+
+        boolean active = hasAcidEffect(player);
+        if (!active) {
+            if (wasActive || !HALLUCINATIONS.isEmpty()) {
+                clearAll();
+            }
+            wasActive = false;
+            return;
+        }
+
+        wasActive = true;
+        tickCounter++;
+
+        updateExisting(player);
+
+        if (tickCounter % SPAWN_CHECK_INTERVAL == 0 && HALLUCINATIONS.size() < MAX_HALLUCINATIONS) {
+            if (RANDOM.nextFloat() < 0.55F) {
+                spawnOne(level, player);
+            }
+        }
+    }
+
+    private static boolean hasAcidEffect(LocalPlayer player) {
+        for (MobEffectInstance instance : player.getActiveEffects()) {
+            String effectText = String.valueOf(instance.getEffect()).toLowerCase(Locale.ROOT);
+            if (effectText.contains("narcotix") && effectText.contains("acid")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void spawnOne(ClientLevel level, LocalPlayer player) {
+        try {
+            double angle = Math.toRadians(player.getYRot()) + Math.toRadians(-70.0D + RANDOM.nextDouble() * 140.0D);
+            double distance = 4.5D + RANDOM.nextDouble() * 9.0D;
+            double x = player.getX() - Math.sin(angle) * distance;
+            double z = player.getZ() + Math.cos(angle) * distance;
+            double y = findGroundY(level, player, x, z);
+
+            UUID uuid = UUID.nameUUIDFromBytes(("narcotix-acid-hallucination-" + System.nanoTime() + "-" + RANDOM.nextInt()).getBytes(StandardCharsets.UTF_8));
+            GameProfile profile = new GameProfile(uuid, RANDOM.nextBoolean() ? "Steve" : "Alex");
+            RemotePlayer fake = new RemotePlayer(level, profile);
+
+            float yaw = faceYaw(fake.getX(), fake.getZ(), player.getX(), player.getZ());
+            fake.setPos(x, y, z);
+            fake.setYRot(yaw);
+            fake.setXRot(0.0F);
+            fake.setYRot(yaw);
+            fake.setYHeadRot(yaw);
+            fake.setYBodyRot(yaw);
+            fake.setSilent(true);
+            fake.setNoGravity(false);
+            fake.noPhysics = true;
+
+            level.addEntity(fake);
+            HALLUCINATIONS.add(new Hallucination(fake, MIN_LIFETIME_TICKS + RANDOM.nextInt(EXTRA_LIFETIME_TICKS), RANDOM.nextFloat() * 360.0F));
+        } catch (Throwable t) {
+            System.out.println("[Narcotix] Failed to spawn Acid hallucination: " + t);
+        }
+    }
+
+    private static double findGroundY(ClientLevel level, LocalPlayer player, double x, double z) {
+        int px = (int)Math.floor(x);
+        int pz = (int)Math.floor(z);
+        int startY = (int)Math.floor(player.getY() + 5.0D);
+        int minY = Math.max(level.getMinY(), (int)Math.floor(player.getY() - 8.0D));
+
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(px, startY, pz);
+        for (int y = startY; y >= minY; y--) {
+            pos.set(px, y, pz);
+            BlockState state = level.getBlockState(pos);
+            if (!state.isAir() && state.isSolidRender()) {
+                return y + 1.0D;
+            }
+        }
+        return player.getY();
+    }
+
+    private static void updateExisting(LocalPlayer player) {
+        Iterator<Hallucination> iterator = HALLUCINATIONS.iterator();
+        while (iterator.hasNext()) {
+            Hallucination h = iterator.next();
+            Entity entity = h.entity;
+            h.age++;
+
+            if (entity == null || !entity.isAlive() || h.age > h.lifetime) {
+                discard(entity);
+                iterator.remove();
+                continue;
+            }
+
+            float yaw = faceYaw(entity.getX(), entity.getZ(), player.getX(), player.getZ());
+            entity.setYRot(yaw);
+            if (entity instanceof RemotePlayer remote) {
+                remote.setYHeadRot(yaw);
+                remote.setYBodyRot(yaw);
+
+                if (h.age % 24 == 0 && RANDOM.nextFloat() < 0.35F) {
+                    double wiggle = Math.sin((h.age + h.seed) * 0.08D) * 0.035D;
+                    remote.setDeltaMovement(wiggle, 0.0D, -wiggle);
+                } else {
+                    remote.setDeltaMovement(0.0D, 0.0D, 0.0D);
+                }
+            }
+
+            double distSq = entity.distanceToSqr(player);
+            if (distSq < 5.0D || distSq > 420.0D) {
+                discard(entity);
+                iterator.remove();
+            }
+        }
+    }
+
+    private static float faceYaw(double fromX, double fromZ, double toX, double toZ) {
+        double dx = toX - fromX;
+        double dz = toZ - fromZ;
+        return (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90.0D);
+    }
+
+    private static void clearAll() {
+        for (Hallucination h : HALLUCINATIONS) {
+            discard(h.entity);
+        }
+        HALLUCINATIONS.clear();
+        tickCounter = 0;
+    }
+
+    private static void discard(Entity entity) {
+        if (entity != null) {
+            entity.discard();
+        }
+    }
+
+    private static final class Hallucination {
+        private final RemotePlayer entity;
+        private final int lifetime;
+        private final float seed;
+        private int age;
+
+        private Hallucination(RemotePlayer entity, int lifetime, float seed) {
+            this.entity = entity;
+            this.lifetime = lifetime;
+            this.seed = seed;
+            this.age = 0;
+        }
+    }
+}
