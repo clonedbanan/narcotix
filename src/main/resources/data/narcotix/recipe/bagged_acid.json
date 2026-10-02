@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "narcotix:baggie",
+    "narcotix:acid"
+  ],
+  "result": {
+    "id": "narcotix:bagged_acid",
+    "count": 1
+  }
+}

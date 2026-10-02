@@ -43,8 +43,7 @@ public class WanderingPlugEntity extends AbstractVillager {
         MerchantOffers offers = this.getOffers();
         offers.clear();
 
-                offers.add(sell(NarcotixMod.BAGGIE, 1, 10, 16));
-offers.add(sell(NarcotixMod.WEED_SEEDS, 1, 1, 24));
+        offers.add(sell(NarcotixMod.WEED_SEEDS, 1, 1, 24));
         offers.add(sell(NarcotixMod.COCAINE_SEEDS, 2, 1, 18));
         offers.add(sell(NarcotixMod.TOBACCO_SEEDS, 1, 1, 24));
 

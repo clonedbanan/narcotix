@@ -31,17 +31,8 @@
     "effect.narcotix.tobacco":  "Tobacco",
     "block.narcotix.lsd_cluster":  "Acid Crystals",
     "item.narcotix.lsd_cluster":  "Acid Crystals",
-    "item.narcotix.bottle_of_pure_acid":  "Bottle of Pure LSD",
+    "item.narcotix.bottle_of_pure_acid": "Bottle of Pure LSD",
     "item.narcotix.acid":  "Acid",
-    "item.narcotix.lsd_shard":  "LSD Shard",
-    "effect.narcotix.acid":  "Acid",
-    "item.narcotix.baggie":  "Baggie",
-    "item.narcotix.bagged_blunt":  "Bagged Blunt",
-    "item.narcotix.bagged_cig":  "Bagged Cigarette",
-    "item.narcotix.bagged_coke":  "Bagged Coke",
-    "item.narcotix.bagged_joint":  "Bagged Joint",
-    "item.narcotix.bagged_acid":  "Bagged Acid",
-    "item.narcotix.bagged_cigarette":  "Bagged Cigarette"
-,
-  "item.narcotix.bagged_bud": "Bagged Bud"
+    "item.narcotix.lsd_shard": "LSD Shard",
+  "effect.narcotix.acid": "Acid"
 }
